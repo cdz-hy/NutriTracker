@@ -34,6 +34,7 @@ import com.example.nutritracker.feature.camera.AnalysisResult
 import com.example.nutritracker.feature.home.mealTypeIcon
 import com.example.nutritracker.feature.home.mealTypeLabel
 import com.example.nutritracker.feature.camera.NutritionResult
+import com.example.nutritracker.ui.theme.*
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import java.io.File
@@ -265,7 +266,11 @@ fun AddMealScreen(
             }
 
             // Loading overlay
-            if (isAnalyzing) {
+            AnimatedVisibility(
+                visible = isAnalyzing,
+                enter = fadeIn(animationSpec = tween(M3Duration.Medium2, easing = M3Easing.Decelerate)),
+                exit = fadeOut(animationSpec = tween(M3Duration.Short3, easing = M3Easing.Accelerate))
+            ) {
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
@@ -332,21 +337,23 @@ private fun MealIntakeCard(
         }
     }
 
-    ElevatedCard(
-        modifier = Modifier
-            .fillMaxWidth()
-            .animateContentSize(
-                animationSpec = spring(
-                    dampingRatio = Spring.DampingRatioLowBouncy,
-                    stiffness = Spring.StiffnessMediumLow
-                )
-            ),
-        colors = CardDefaults.elevatedCardColors(
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainerLow
         ),
-        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 0.5.dp)
+        shape = MaterialTheme.shapes.medium
     ) {
-        Column(modifier = Modifier.clickable { expanded = !expanded }) {
+        Column(
+            modifier = Modifier
+                .clickable { expanded = !expanded }
+                .animateContentSize(
+                    animationSpec = spring(
+                        dampingRatio = Spring.DampingRatioLowBouncy,
+                        stiffness = Spring.StiffnessMediumLow
+                    )
+                )
+        ) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()

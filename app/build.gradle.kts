@@ -1,3 +1,6 @@
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -51,6 +54,16 @@ android {
     }
     buildFeatures {
         compose = true
+    }
+
+    @Suppress("DEPRECATION")
+    applicationVariants.all {
+        val variant = this
+        variant.outputs.all {
+            val output = this as? com.android.build.gradle.api.ApkVariantOutput
+            val dateStr = LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"))
+            output?.outputFileName = "NutriTracker_v${variant.versionName}_c${variant.versionCode}_${variant.buildType.name}_$dateStr.apk"
+        }
     }
 }
 

@@ -5,6 +5,11 @@ import androidx.compose.animation.core.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import kotlinx.coroutines.delay
+import androidx.compose.ui.composed
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.ui.graphics.graphicsLayer
 
 // ══════════════════════════════════════════════════════════════════════════════
 // MD3 动画规范
@@ -313,4 +318,28 @@ fun AnimatedExpand(
     ) {
         content()
     }
+}
+
+/**
+ * 弹性点击修饰符 - 提供类似 MD3/iOS 的微弹物理反馈
+ */
+fun Modifier.bounceClick(
+    enabled: Boolean = true,
+    onClick: () -> Unit
+): Modifier = composed {
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+    val scale by PressScale(pressed = enabled && isPressed)
+
+    this
+        .graphicsLayer {
+            scaleX = scale
+            scaleY = scale
+        }
+        .clickable(
+            enabled = enabled,
+            interactionSource = interactionSource,
+            indication = androidx.compose.foundation.LocalIndication.current,
+            onClick = onClick
+        )
 }

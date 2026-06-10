@@ -189,14 +189,13 @@ private fun SourceCard(
 ) {
     var expanded by remember { mutableStateOf(false) }
 
-    ElevatedCard(
+    Card(
         modifier = Modifier
             .fillMaxWidth()
             .clickable { expanded = !expanded },
-        colors = CardDefaults.elevatedCardColors(
+        colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainerLow
         ),
-        elevation = CardDefaults.elevatedCardElevation(defaultElevation = Dimens.CardElevation),
         shape = MaterialTheme.shapes.large
     ) {
         Column(

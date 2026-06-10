@@ -23,7 +23,9 @@ data class DiaryState(
     val proteinGoal: Double = 0.0, val proteinTracked: Double = 0.0,
     val intakes: List<Intake> = emptyList(),
     val meals: Map<Long, Meal> = emptyMap(),
-    val activities: List<UserActivityEntity> = emptyList()
+    val activities: List<UserActivityEntity> = emptyList(),
+    val waterMl: Int = 0,
+    val waterGoalMl: Int = 2000
 )
 
 @HiltViewModel
@@ -34,6 +36,7 @@ class DiaryViewModel @Inject constructor(
     private val activityRepo: ActivityRepository,
     private val userRepo: UserRepository,
     private val settingsRepo: SettingsRepository,
+    private val waterRepo: WaterIntakeRepository,
     private val dayBoundaryCalc: DayBoundaryCalc
 ) : ViewModel() {
 
@@ -42,7 +45,6 @@ class DiaryViewModel @Inject constructor(
 
     fun loadDay(date: LocalDate) {
         viewModelScope.launch {
-            _state.update { it.copy(isLoading = true) }
             val user = userRepo.getUser()
             val offset = settingsRepo.dayBoundaryMinutes.first()
             val intakes = intakeRepo.getByLogicalDay(date, offset)
@@ -51,6 +53,8 @@ class DiaryViewModel @Inject constructor(
             val activities = activityRepo.getByLogicalDay(date, offset)
             val tracked = trackedDayRepo.getByDate(date)
             val activityBurn = activities.sumOf { it.burnedKcal }
+            val waterMl = waterRepo.getTotalMlByLogicalDay(date, offset)
+            val waterGoal = settingsRepo.waterGoalMl.first()
 
             // Compute calorie goal for the day using the same logic as HomeViewModel
             val kcalAdj = settingsRepo.kcalAdjustment.first()
@@ -79,7 +83,8 @@ class DiaryViewModel @Inject constructor(
                     carbsGoal = carbsGoal, carbsTracked = tracked?.carbsTracked ?: 0.0,
                     fatGoal = fatGoal, fatTracked = tracked?.fatTracked ?: 0.0,
                     proteinGoal = proteinGoal, proteinTracked = tracked?.proteinTracked ?: 0.0,
-                    intakes = intakes, meals = meals, activities = activities
+                    intakes = intakes, meals = meals, activities = activities,
+                    waterMl = waterMl, waterGoalMl = waterGoal
                 )
             }
         }

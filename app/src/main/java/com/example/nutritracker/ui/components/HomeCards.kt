@@ -429,8 +429,8 @@ private fun MacroItem(
 fun WaterCard(
     currentMl: Int,
     goalMl: Int,
-    onAdd: () -> Unit,
-    onUndo: () -> Unit
+    onAdd: (() -> Unit)? = null,
+    onUndo: (() -> Unit)? = null
 ) {
     val isDark = androidx.compose.foundation.isSystemInDarkTheme()
     val waterColor = if (isDark) WaterColorDark else WaterColor
@@ -483,27 +483,29 @@ fun WaterCard(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-            Column(
-                verticalArrangement = Arrangement.spacedBy(4.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                FilledTonalButton(
-                    onClick = onAdd,
-                    colors = ButtonDefaults.filledTonalButtonColors(
-                        containerColor = waterColor.copy(alpha = 0.15f),
-                        contentColor = waterColor
-                    )
+            if (onAdd != null) {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Text("+250ml")
-                }
-                if (currentMl > 0) {
-                    TextButton(
-                        onClick = onUndo,
-                        colors = ButtonDefaults.textButtonColors(
-                            contentColor = MaterialTheme.colorScheme.error
+                    FilledTonalButton(
+                        onClick = onAdd,
+                        colors = ButtonDefaults.filledTonalButtonColors(
+                            containerColor = waterColor.copy(alpha = 0.15f),
+                            contentColor = waterColor
                         )
                     ) {
-                        Text("撤回", style = MaterialTheme.typography.labelSmall)
+                        Text("+250ml")
+                    }
+                    if (currentMl > 0 && onUndo != null) {
+                        TextButton(
+                            onClick = onUndo,
+                            colors = ButtonDefaults.textButtonColors(
+                                contentColor = MaterialTheme.colorScheme.error
+                            )
+                        ) {
+                            Text("撤回", style = MaterialTheme.typography.labelSmall)
+                        }
                     }
                 }
             }

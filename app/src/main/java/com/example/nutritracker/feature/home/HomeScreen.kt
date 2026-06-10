@@ -1,6 +1,7 @@
 package com.example.nutritracker.feature.home
 
 import androidx.compose.animation.*
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -207,7 +208,21 @@ fun HomeScreen(
         }
 
         // Glassmorphic background AI analyzing float card
-        if (aiIsAnalyzing) {
+        AnimatedVisibility(
+            visible = aiIsAnalyzing,
+            enter = slideInVertically(
+                initialOffsetY = { it },
+                animationSpec = tween(M3Duration.Medium2, easing = M3Easing.Decelerate)
+            ) + fadeIn(animationSpec = tween(M3Duration.Medium2)),
+            exit = slideOutVertically(
+                targetOffsetY = { it },
+                animationSpec = tween(M3Duration.Short3, easing = M3Easing.Accelerate)
+            ) + fadeOut(animationSpec = tween(M3Duration.Short3)),
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(horizontal = 24.dp, vertical = 16.dp)
+                .fillMaxWidth()
+        ) {
             Surface(
                 shape = MaterialTheme.shapes.large,
                 color = MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.9f),
@@ -216,10 +231,7 @@ fun HomeScreen(
                     MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
                 ),
                 tonalElevation = 6.dp,
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(horizontal = 24.dp, vertical = 16.dp)
-                    .fillMaxWidth()
+                modifier = Modifier.fillMaxWidth()
             ) {
                 Row(
                     modifier = Modifier
@@ -266,7 +278,7 @@ private fun MealSectionHeader(
     ElevatedCard(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { onAddClick() },
+            .bounceClick { onAddClick() },
         colors = CardDefaults.elevatedCardColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainerLow
         ),
@@ -332,7 +344,7 @@ private fun ActivitySectionHeader(
     ElevatedCard(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { onAddClick() },
+            .bounceClick { onAddClick() },
         colors = CardDefaults.elevatedCardColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainerLow
         ),

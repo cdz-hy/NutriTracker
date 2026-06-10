@@ -18,11 +18,12 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.foundation.clickable
+import androidx.compose.ui.draw.clip
 import com.example.nutritracker.data.entity.IntakeType
 import com.example.nutritracker.feature.home.mealTypeIcon
 import com.example.nutritracker.feature.home.mealTypeLabel
-import com.example.nutritracker.ui.components.CalorieOverviewCard
-import com.example.nutritracker.ui.components.MacroProgressRow
+import com.example.nutritracker.ui.components.*
 import com.example.nutritracker.ui.theme.*
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
@@ -38,6 +39,7 @@ fun DiaryScreen(
 ) {
     val state by vm.state.collectAsStateWithLifecycle()
     var selectedDate by remember { mutableStateOf(LocalDate.now()) }
+    var showDatePicker by remember { mutableStateOf(false) }
 
     LaunchedEffect(selectedDate) { vm.loadDay(selectedDate) }
 
@@ -104,7 +106,11 @@ fun DiaryScreen(
                     ) { date ->
                         Column(
                             horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(2.dp)
+                            verticalArrangement = Arrangement.spacedBy(2.dp),
+                            modifier = Modifier
+                                .clip(MaterialTheme.shapes.small)
+                                .bounceClick { showDatePicker = true }
+                                .padding(horizontal = 16.dp, vertical = 4.dp)
                         ) {
                             Text(
                                 text = date.dayOfWeek.getDisplayName(TextStyle.FULL, Locale.CHINESE),
@@ -176,8 +182,18 @@ fun DiaryScreen(
                 }
             }
 
+            // ── 饮水记录 ─────────────────────────────────────────────
+            item(key = "water_progress") {
+                StaggeredFadeIn(index = 2) {
+                    WaterCard(
+                        currentMl = state.waterMl,
+                        goalMl = state.waterGoalMl
+                    )
+                }
+            }
+
             // ── 按餐类型分组 ─────────────────────────────────────────
-            var sectionIdx = 2
+            var sectionIdx = 3
             IntakeType.entries.forEach { type ->
                 val intakesForType = state.intakes.filter { it.intakeType == type }
                 if (intakesForType.isNotEmpty()) {
@@ -194,7 +210,9 @@ fun DiaryScreen(
                     }
                     items(intakesForType, key = { "diary_intake_${it.id}" }) { intake ->
                         val meal = state.meals[intake.mealId]
-                        DiaryIntakeCard(intake = intake, meal = meal)
+                        Box(modifier = Modifier.animateItem()) {
+                            DiaryIntakeCard(intake = intake, meal = meal)
+                        }
                     }
                 }
             }
@@ -209,44 +227,87 @@ fun DiaryScreen(
                     }
                 }
                 items(state.activities, key = { "diary_activity_${it.id}" }) { activity ->
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
-                        ),
-                        elevation = CardDefaults.cardElevation(defaultElevation = Dimens.CardElevationLow),
-                        shape = MaterialTheme.shapes.medium
-                    ) {
-                        ListItem(
-                            headlineContent = {
-                                Text(
-                                    text = activity.name,
-                                    style = MaterialTheme.typography.bodyLarge,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                            },
-                            supportingContent = {
-                                Text(
-                                    text = "${activity.durationMinutes.roundToInt()}分钟 · ${activity.burnedKcal.roundToInt()} kcal",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            },
-                            leadingContent = {
-                                Icon(
-                                    Icons.Filled.LocalFireDepartment,
-                                    contentDescription = null,
-                                    tint = BurnColor,
-                                    modifier = Modifier.size(Dimens.IconSizeMedium)
-                                )
-                            },
-                            colors = ListItemDefaults.colors(
+                    Box(modifier = Modifier.animateItem()) {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(
                                 containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+                            ),
+                            elevation = CardDefaults.cardElevation(defaultElevation = Dimens.CardElevationLow),
+                            shape = MaterialTheme.shapes.medium
+                        ) {
+                            ListItem(
+                                headlineContent = {
+                                    Text(
+                                        text = activity.name,
+                                        style = MaterialTheme.typography.bodyLarge,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                },
+                                supportingContent = {
+                                    Text(
+                                        text = "${activity.durationMinutes.roundToInt()}分钟 · ${activity.burnedKcal.roundToInt()} kcal",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                },
+                                leadingContent = {
+                                    Icon(
+                                        Icons.Filled.LocalFireDepartment,
+                                        contentDescription = null,
+                                        tint = BurnColor,
+                                        modifier = Modifier.size(Dimens.IconSizeMedium)
+                                    )
+                                },
+                                colors = ListItemDefaults.colors(
+                                    containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+                                )
                             )
-                        )
+                        }
                     }
-                }
             }
+        }
+    }
+}
+
+    if (showDatePicker) {
+        val datePickerState = rememberDatePickerState(
+            initialSelectedDateMillis = selectedDate.toEpochDay() * 86400000L
+        )
+
+        DatePickerDialog(
+            onDismissRequest = { showDatePicker = false },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        datePickerState.selectedDateMillis?.let { millis ->
+                            selectedDate = LocalDate.ofEpochDay(millis / 86400000L)
+                        }
+                        showDatePicker = false
+                    }
+                ) {
+                    Text("确定")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDatePicker = false }) {
+                    Text("取消")
+                }
+            },
+            colors = DatePickerDefaults.colors(
+                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+            )
+        ) {
+            DatePicker(
+                state = datePickerState,
+                colors = DatePickerDefaults.colors(
+                    containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    selectedDayContainerColor = MaterialTheme.colorScheme.primary,
+                    selectedDayContentColor = MaterialTheme.colorScheme.onPrimary,
+                    todayContentColor = MaterialTheme.colorScheme.primary,
+                    todayDateBorderColor = MaterialTheme.colorScheme.primary
+                )
+            )
         }
     }
 }
