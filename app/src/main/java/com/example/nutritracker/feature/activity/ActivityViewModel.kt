@@ -27,10 +27,6 @@ class ActivityViewModel @Inject constructor(
         viewModelScope.launch {
             val now = LocalDateTime.now()
             activityRepo.upsert(UserActivityEntity(name = name, mets = mets, durationMinutes = duration, burnedKcal = burnedKcal, dateTime = now))
-            val offset = settingsRepo.dayBoundaryMinutes.first()
-            val day = dayBoundaryCalc.logicalDayOf(now, offset)
-            trackedDayRepo.ensureDay(day, 0.0, 0.0, 0.0, 0.0)
-            trackedDayRepo.increaseGoal(day, burnedKcal)
         }
     }
 
@@ -38,10 +34,6 @@ class ActivityViewModel @Inject constructor(
         viewModelScope.launch {
             val now = LocalDateTime.now()
             activityRepo.upsert(UserActivityEntity(name = name, mets = 0.0, durationMinutes = duration, burnedKcal = kcal, dateTime = now, isCustom = true))
-            val offset = settingsRepo.dayBoundaryMinutes.first()
-            val day = dayBoundaryCalc.logicalDayOf(now, offset)
-            trackedDayRepo.ensureDay(day, 0.0, 0.0, 0.0, 0.0)
-            trackedDayRepo.increaseGoal(day, kcal)
         }
     }
 }

@@ -4,11 +4,16 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.nutritracker.data.entity.*
 import com.example.nutritracker.data.repository.*
-import com.example.nutritracker.feature.camera.NutritionResult
+import android.content.Context
+import android.net.Uri
+import com.example.nutritracker.feature.camera.AnalysisResult
+import com.example.nutritracker.feature.camera.AiFoodAnalyzer
 import com.example.nutritracker.util.DayBoundaryCalc
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.time.LocalDateTime
 import javax.inject.Inject
 
@@ -21,44 +26,141 @@ class AddMealViewModel @Inject constructor(
     private val dayBoundaryCalc: DayBoundaryCalc
 ) : ViewModel() {
 
-    private val _meals = MutableStateFlow<List<Meal>>(emptyList())
-    val meals: StateFlow<List<Meal>> = _meals.asStateFlow()
+    private val _todayIntakes = MutableStateFlow<List<Intake>>(emptyList())
+    val todayIntakes: StateFlow<List<Intake>> = _todayIntakes.asStateFlow()
 
-    init { search("") }
+    private val _mealsMap = MutableStateFlow<Map<Long, Meal>>(emptyMap())
+    val mealsMap: StateFlow<Map<Long, Meal>> = _mealsMap.asStateFlow()
 
-    fun search(query: String) {
+    private val _isAnalyzing = MutableStateFlow(false)
+    val isAnalyzing: StateFlow<Boolean> = _isAnalyzing.asStateFlow()
+
+    private val _analysisError = MutableStateFlow<String?>(null)
+    val analysisError: StateFlow<String?> = _analysisError.asStateFlow()
+
+    fun clearAnalysisError() {
+        _analysisError.value = null
+    }
+
+    /**
+     * 后台执行 AI 食物分析
+     */
+    fun analyzeAndCreateMeals(context: Context, uri: Uri, intakeType: IntakeType) {
         viewModelScope.launch {
-            _meals.value = if (query.isBlank()) {
-                mealRepo.getAllFlow().first().take(50)
-            } else {
-                mealRepo.search(query)
+            _isAnalyzing.value = true
+            _analysisError.value = null
+            try {
+                val apiKey = settingsRepo.aiApiKey.first()
+                val baseUrl = settingsRepo.aiBaseUrl.first()
+                val model = settingsRepo.aiModel.first()
+                if (apiKey.isBlank()) {
+                    _analysisError.value = "请先在设置中配置 AI API Key"
+                    _isAnalyzing.value = false
+                    return@launch
+                }
+
+                val result = withContext(Dispatchers.IO) {
+                    val analyzer = AiFoodAnalyzer(apiKey, baseUrl, model)
+                    // 保存低分辨率缩略图
+                    val thumbnailPath = analyzer.saveThumbnail(context, uri)
+                    // 分析图片
+                    val analysisResult = analyzer.analyzeImage(context, uri)
+                    analysisResult.map { nutritionResult ->
+                        AnalysisResult(
+                            nutritionResult = nutritionResult,
+                            thumbnailPath = thumbnailPath
+                        )
+                    }
+                }
+
+                result.fold(
+                    onSuccess = { ar ->
+                        createMealsFromAnalysis(ar, intakeType)
+                    },
+                    onFailure = { error ->
+                        _analysisError.value = error.message ?: "分析失败"
+                    }
+                )
+            } catch (e: Exception) {
+                _analysisError.value = e.message ?: "分析异常"
+            } finally {
+                _isAnalyzing.value = false
             }
         }
     }
 
-    fun createMealFromNutrition(nr: NutritionResult) {
+    /**
+     * 加载今日该餐类型的摄入记录
+     */
+    fun loadTodayIntakes(intakeType: IntakeType) {
         viewModelScope.launch {
-            mealRepo.upsert(
-                Meal(
-                    name = nr.name,
-                    brands = nr.brands,
-                    source = MealSource.AI_ANALYSIS,
-                    energyKcal100 = nr.energyKcal100,
-                    carbohydrates100 = nr.carbohydrates100,
-                    fat100 = nr.fat100,
-                    proteins100 = nr.proteins100,
-                    sugars100 = nr.sugars100,
-                    saturatedFat100 = nr.saturatedFat100,
-                    fiber100 = nr.fiber100,
-                    sodium100 = nr.sodium100
-                )
-            )
+            val offset = settingsRepo.dayBoundaryMinutes.first()
+            val today = dayBoundaryCalc.currentLogicalDay(offset)
+            val intakes = intakeRepo.getByTypeAndLogicalDay(intakeType, today, offset)
+            _todayIntakes.value = intakes
+
+            // 加载对应的 Meal 数据
+            val mealIds = intakes.map { it.mealId }.distinct()
+            val meals = mealIds.mapNotNull { id -> mealRepo.getById(id) }.associateBy { it.id }
+            _mealsMap.value = meals
         }
     }
 
+    /**
+     * 从 AI 分析结果创建多个 Meal 并记录摄入
+     */
+    fun createMealsFromAnalysis(result: AnalysisResult, intakeType: IntakeType) {
+        viewModelScope.launch {
+            val nutrition = result.nutritionResult
+            val thumbnailPath = result.thumbnailPath
+
+            // 为每个食物项创建 Meal 和 Intake
+            nutrition.foodItems.forEach { item ->
+                val kcalPer100g = if (item.weightG > 0) item.calories * 100.0 / item.weightG else 0.0
+                val carbsPer100g = if (item.weightG > 0) item.carbs * 100.0 / item.weightG else 0.0
+                val fatPer100g = if (item.weightG > 0) item.fat * 100.0 / item.weightG else 0.0
+                val proteinPer100g = if (item.weightG > 0) item.protein * 100.0 / item.weightG else 0.0
+
+                val mealId = mealRepo.upsert(
+                    Meal(
+                        name = item.name,
+                        source = MealSource.AI_ANALYSIS,
+                        energyKcal100 = kcalPer100g,
+                        carbohydrates100 = carbsPer100g,
+                        fat100 = fatPer100g,
+                        proteins100 = proteinPer100g,
+                        localImagePath = thumbnailPath
+                    )
+                )
+                addIntake(mealId, item.weightG, intakeType)
+            }
+
+            // 如果没有 food_items 但有总计数据，创建一个汇总条目
+            if (nutrition.foodItems.isEmpty() && nutrition.totalCalories > 0) {
+                val mealId = mealRepo.upsert(
+                    Meal(
+                        name = "AI 识别食物",
+                        source = MealSource.AI_ANALYSIS,
+                        energyKcal100 = nutrition.totalCalories,
+                        carbohydrates100 = nutrition.totalCarbs,
+                        fat100 = nutrition.totalFat,
+                        proteins100 = nutrition.totalProtein,
+                        localImagePath = thumbnailPath
+                    )
+                )
+                addIntake(mealId, 100.0, intakeType)
+            }
+
+            loadTodayIntakes(intakeType)
+        }
+    }
+
+    /**
+     * 手动创建食物并记录摄入
+     */
     fun createManualMeal(
         name: String, kcal: Double, carbs: Double, fat: Double, protein: Double,
-        weight: Double, intakeTypeId: Int
+        weight: Double, intakeType: IntakeType
     ) {
         viewModelScope.launch {
             val mealId = mealRepo.upsert(
@@ -68,7 +170,70 @@ class AddMealViewModel @Inject constructor(
                     fat100 = fat, proteins100 = protein
                 )
             )
-            addIntake(mealId, weight, IntakeType.entries[intakeTypeId])
+            addIntake(mealId, weight, intakeType)
+            loadTodayIntakes(intakeType)
+        }
+    }
+
+    /**
+     * 删除摄入记录
+     * 先从 TrackedDay 移除卡路里，再删除摄入记录
+     */
+    fun deleteIntake(intake: Intake) {
+        viewModelScope.launch {
+            // 先获取 Meal 数据（删除后可能无法获取）
+            val meal = mealRepo.getById(intake.mealId)
+            // 先从 TrackedDay 移除卡路里
+            if (meal != null) {
+                val offset = settingsRepo.dayBoundaryMinutes.first()
+                val today = dayBoundaryCalc.logicalDayOf(intake.dateTime, offset)
+                trackedDayRepo.removeCalories(
+                    today,
+                    meal.energyKcal100 * intake.amount / 100.0,
+                    meal.carbohydrates100 * intake.amount / 100.0,
+                    meal.fat100 * intake.amount / 100.0,
+                    meal.proteins100 * intake.amount / 100.0
+                )
+            }
+            // 再删除摄入记录
+            intakeRepo.delete(intake)
+            loadTodayIntakes(intake.intakeType)
+        }
+    }
+
+    /**
+     * 更新摄入记录的份量
+     * 先移除旧的卡路里，更新记录，再添加新的卡路里
+     */
+    fun updateIntakeAmount(intake: Intake, newAmount: Double) {
+        viewModelScope.launch {
+            val meal = mealRepo.getById(intake.mealId) ?: return@launch
+            val offset = settingsRepo.dayBoundaryMinutes.first()
+            val today = dayBoundaryCalc.logicalDayOf(intake.dateTime, offset)
+
+            // 移除旧的卡路里
+            trackedDayRepo.removeCalories(
+                today,
+                meal.energyKcal100 * intake.amount / 100.0,
+                meal.carbohydrates100 * intake.amount / 100.0,
+                meal.fat100 * intake.amount / 100.0,
+                meal.proteins100 * intake.amount / 100.0
+            )
+
+            // 更新摄入记录
+            val updatedIntake = intake.copy(amount = newAmount)
+            intakeRepo.upsert(updatedIntake)
+
+            // 添加新的卡路里
+            trackedDayRepo.addCalories(
+                today,
+                meal.energyKcal100 * newAmount / 100.0,
+                meal.carbohydrates100 * newAmount / 100.0,
+                meal.fat100 * newAmount / 100.0,
+                meal.proteins100 * newAmount / 100.0
+            )
+
+            loadTodayIntakes(intake.intakeType)
         }
     }
 
@@ -78,7 +243,6 @@ class AddMealViewModel @Inject constructor(
         val meal = mealRepo.getById(mealId) ?: return
         val offset = settingsRepo.dayBoundaryMinutes.first()
         val day = dayBoundaryCalc.logicalDayOf(now, offset)
-        val goal = settingsRepo.carbPct.first() // just to get settings
         trackedDayRepo.ensureDay(day, 0.0, 0.0, 0.0, 0.0)
         trackedDayRepo.addCalories(
             day,

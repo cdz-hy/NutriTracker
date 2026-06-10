@@ -35,6 +35,7 @@ class IntakeRepository(
     suspend fun delete(intake: Intake) = dao.delete(intake)
     suspend fun deleteById(id: Long) = dao.deleteById(id)
     suspend fun getById(id: Long): Intake? = dao.getById(id)
+    suspend fun getByMealId(mealId: Long): Intake? = dao.getByMealId(mealId)
     suspend fun getRecent(limit: Int = 20): List<Intake> = dao.getRecent(limit)
 
     suspend fun getByLogicalDay(date: LocalDate, offsetMinutes: Int = 0): List<Intake> {
@@ -59,7 +60,20 @@ class TrackedDayRepository(private val dao: TrackedDayDao) {
 
     suspend fun ensureDay(date: LocalDate, calorieGoal: Double, carbGoal: Double, fatGoal: Double, proteinGoal: Double): TrackedDay {
         val existing = dao.getByDate(date)
-        if (existing != null) return existing
+        if (existing != null) {
+            // 如果目标为 0 且传入的目标 > 0，则更新目标
+            if (existing.calorieGoal == 0.0 && calorieGoal > 0.0) {
+                val updated = existing.copy(
+                    calorieGoal = calorieGoal,
+                    carbsGoal = carbGoal,
+                    fatGoal = fatGoal,
+                    proteinGoal = proteinGoal
+                )
+                dao.upsert(updated)
+                return updated
+            }
+            return existing
+        }
         val day = TrackedDay(
             date = date, calorieGoal = calorieGoal,
             carbsGoal = carbGoal, fatGoal = fatGoal, proteinGoal = proteinGoal

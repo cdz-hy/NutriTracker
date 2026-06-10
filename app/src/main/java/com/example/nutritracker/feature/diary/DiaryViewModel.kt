@@ -58,7 +58,11 @@ class DiaryViewModel @Inject constructor(
             val fatPct = settingsRepo.fatPct.first()
             val proteinPct = settingsRepo.proteinPct.first()
             val calorieGoal = if (user != null) {
-                CalorieGoalCalc.getTotalKcalGoal(user, activityBurn, kcalAdj)
+                CalorieGoalCalc.getTotalKcalGoal(
+                    user = user,
+                    userKcalAdjustment = kcalAdj,
+                    totalKcalActivities = activityBurn
+                )
             } else {
                 tracked?.calorieGoal ?: 0.0
             }

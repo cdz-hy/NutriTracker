@@ -25,27 +25,22 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
-import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.LocalLifecycleOwner
-import kotlinx.coroutines.launch
 import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CameraCaptureScreen(
-    onResult: (NutritionResult) -> Unit,
-    onBack: () -> Unit,
-    vm: CameraViewModel = hiltViewModel()
+    onImageSelected: (Uri) -> Unit,
+    onBack: () -> Unit
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
-    val scope = rememberCoroutineScope()
     var hasCameraPermission by remember {
         mutableStateOf(
             ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
         )
     }
-    var isAnalyzing by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
     val permissionLauncher = rememberLauncherForActivityResult(
@@ -54,23 +49,10 @@ fun CameraCaptureScreen(
         hasCameraPermission = granted
     }
 
-    fun analyze(uri: Uri) {
-        scope.launch {
-            isAnalyzing = true
-            errorMessage = null
-            val result = vm.analyzeImage(context, uri)
-            result.fold(
-                onSuccess = { onResult(it) },
-                onFailure = { errorMessage = it.message ?: "分析失败" }
-            )
-            isAnalyzing = false
-        }
-    }
-
     val galleryLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
-        uri?.let { analyze(it) }
+        uri?.let { onImageSelected(it) }
     }
 
     LaunchedEffect(Unit) {
@@ -166,36 +148,6 @@ fun CameraCaptureScreen(
                 }
             }
 
-            if (isAnalyzing) {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Card(
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
-                        ),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
-                    ) {
-                        Column(
-                            modifier = Modifier.padding(32.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(16.dp)
-                        ) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(48.dp),
-                                color = MaterialTheme.colorScheme.primary
-                            )
-                            Text(
-                                text = "正在分析...",
-                                style = MaterialTheme.typography.bodyLarge,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                        }
-                    }
-                }
-            }
-
             errorMessage?.let { msg ->
                 Snackbar(
                     modifier = Modifier
@@ -231,7 +183,7 @@ fun CameraCaptureScreen(
                 }
                 LargeFloatingActionButton(
                     onClick = {
-                        if (!hasCameraPermission || isAnalyzing) return@LargeFloatingActionButton
+                        if (!hasCameraPermission) return@LargeFloatingActionButton
                         val photoFile = File(context.cacheDir, "food_${System.currentTimeMillis()}.jpg")
                         val outputOptions = ImageCapture.OutputFileOptions.Builder(photoFile).build()
                         imageCapture.takePicture(
@@ -239,11 +191,10 @@ fun CameraCaptureScreen(
                             ContextCompat.getMainExecutor(context),
                             object : ImageCapture.OnImageSavedCallback {
                                 override fun onImageSaved(output: ImageCapture.OutputFileResults) {
-                                    analyze(Uri.fromFile(photoFile))
+                                    onImageSelected(Uri.fromFile(photoFile))
                                 }
                                 override fun onError(exception: ImageCaptureException) {
                                     errorMessage = "拍照失败: ${exception.message}"
-                                    isAnalyzing = false
                                 }
                             }
                         )

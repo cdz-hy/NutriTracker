@@ -53,6 +53,9 @@ interface IntakeDao {
     @Query("SELECT * FROM intakes WHERE id = :id")
     suspend fun getById(id: Long): Intake?
 
+    @Query("SELECT * FROM intakes WHERE mealId = :mealId LIMIT 1")
+    suspend fun getByMealId(mealId: Long): Intake?
+
     @Query("""
         SELECT * FROM intakes
         WHERE dateTime >= :start AND dateTime < :end

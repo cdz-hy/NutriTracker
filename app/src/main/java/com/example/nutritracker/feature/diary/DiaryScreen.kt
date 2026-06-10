@@ -1,5 +1,7 @@
 package com.example.nutritracker.feature.diary
 
+import androidx.compose.animation.*
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -21,6 +23,7 @@ import com.example.nutritracker.feature.home.mealTypeIcon
 import com.example.nutritracker.feature.home.mealTypeLabel
 import com.example.nutritracker.ui.components.CalorieOverviewCard
 import com.example.nutritracker.ui.components.MacroProgressRow
+import com.example.nutritracker.ui.theme.*
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
@@ -29,105 +32,139 @@ import kotlin.math.roundToInt
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun DiaryScreen(vm: DiaryViewModel = hiltViewModel()) {
+fun DiaryScreen(
+    onNavigateToSources: () -> Unit,
+    vm: DiaryViewModel = hiltViewModel()
+) {
     val state by vm.state.collectAsStateWithLifecycle()
     var selectedDate by remember { mutableStateOf(LocalDate.now()) }
 
     LaunchedEffect(selectedDate) { vm.loadDay(selectedDate) }
 
-    Column(
+    // 整体使用单一 LazyColumn，消除嵌套滚动问题
+    LazyColumn(
         modifier = Modifier
             .fillMaxSize()
-            .padding(horizontal = 16.dp)
+            .padding(horizontal = Dimens.ContentPadding),
+        verticalArrangement = Arrangement.spacedBy(Dimens.CardSpacing),
+        contentPadding = PaddingValues(top = 8.dp, bottom = 16.dp)
     ) {
-        // Header
-        Text(
-            text = "日记",
-            style = MaterialTheme.typography.headlineMedium,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onSurface,
-            modifier = Modifier.padding(vertical = 16.dp)
-        )
+        // ── 标题 ─────────────────────────────────────────────────────
+        item(key = "header") {
+            Text(
+                text = "日记",
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.padding(vertical = 8.dp)
+            )
+        }
 
-        // Date selector
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceContainerLow
-            ),
-            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
+        // ── 日期选择器 ───────────────────────────────────────────────
+        item(key = "date_selector") {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+                ),
+                elevation = CardDefaults.cardElevation(defaultElevation = Dimens.CardElevation),
+                shape = MaterialTheme.shapes.large
             ) {
-                IconButton(onClick = { selectedDate = selectedDate.minusDays(1) }) {
-                    Icon(
-                        Icons.AutoMirrored.Filled.KeyboardArrowLeft,
-                        contentDescription = "前一天",
-                        tint = MaterialTheme.colorScheme.onSurface
-                    )
-                }
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(2.dp)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Text(
-                        text = selectedDate.dayOfWeek.getDisplayName(TextStyle.FULL, Locale.CHINESE),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Text(
-                        text = selectedDate.format(DateTimeFormatter.ofPattern("yyyy年MM月dd日")),
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                }
-                IconButton(onClick = { selectedDate = selectedDate.plusDays(1) }) {
-                    Icon(
-                        Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                        contentDescription = "后一天",
-                        tint = MaterialTheme.colorScheme.onSurface
-                    )
+                    IconButton(onClick = { selectedDate = selectedDate.minusDays(1) }) {
+                        Icon(
+                            Icons.AutoMirrored.Filled.KeyboardArrowLeft,
+                            contentDescription = "前一天",
+                            tint = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+
+                    // 日期文本带动画
+                    AnimatedContent(
+                        targetState = selectedDate,
+                        transitionSpec = {
+                            val isForward = targetState > initialState
+                            val enter = fadeIn(tween(200)) + slideInHorizontally(
+                                initialOffsetX = { if (isForward) it / 3 else -it / 3 },
+                                animationSpec = tween(250)
+                            )
+                            val exit = fadeOut(tween(150)) + slideOutHorizontally(
+                                targetOffsetX = { if (isForward) -it / 3 else it / 3 },
+                                animationSpec = tween(200)
+                            )
+                            enter togetherWith exit
+                        },
+                        label = "dateAnimation"
+                    ) { date ->
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(2.dp)
+                        ) {
+                            Text(
+                                text = date.dayOfWeek.getDisplayName(TextStyle.FULL, Locale.CHINESE),
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Text(
+                                text = date.format(DateTimeFormatter.ofPattern("yyyy年MM月dd日")),
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                    }
+
+                    IconButton(onClick = { selectedDate = selectedDate.plusDays(1) }) {
+                        Icon(
+                            Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                            contentDescription = "后一天",
+                            tint = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
                 }
             }
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
-
+        // ── 加载状态 ─────────────────────────────────────────────────
         if (state.isLoading) {
-            Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
-            ) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(48.dp),
-                    color = MaterialTheme.colorScheme.primary
-                )
+            item(key = "loading") {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(200.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(48.dp),
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
             }
         } else {
-            LazyColumn(
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-                contentPadding = PaddingValues(bottom = 16.dp)
-            ) {
-                // Calorie overview
-                item {
+            // ── 卡路里总览 ───────────────────────────────────────────
+            item(key = "calorie_overview") {
+                StaggeredAnimatedItem(index = 0) {
                     CalorieOverviewCard(
                         goal = state.calorieGoal,
                         supplied = state.caloriesTracked,
                         burned = state.caloriesBurned,
                         left = state.calorieGoal - state.caloriesTracked,
                         isBelowFloor = false,
-                        floor = 0.0
+                        floor = 0.0,
+                        onNavigateToSources = onNavigateToSources
                     )
                 }
+            }
 
-                // Macro progress
-                item {
+            // ── 宏量营养素 ───────────────────────────────────────────
+            item(key = "macro_progress") {
+                StaggeredAnimatedItem(index = 1) {
                     MacroProgressRow(
                         carbsCurrent = state.carbsTracked,
                         carbsGoal = state.carbsGoal,
@@ -137,136 +174,182 @@ fun DiaryScreen(vm: DiaryViewModel = hiltViewModel()) {
                         proteinGoal = state.proteinGoal
                     )
                 }
+            }
 
-                // Grouped by intake type
-                IntakeType.entries.forEach { type ->
-                    val intakesForType = state.intakes.filter { it.intakeType == type }
-                    if (intakesForType.isNotEmpty()) {
-                        item {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(top = 8.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(12.dp)
-                            ) {
-                                Icon(
-                                    mealTypeIcon(type),
-                                    contentDescription = null,
-                                    modifier = Modifier.size(20.dp),
-                                    tint = MaterialTheme.colorScheme.primary
-                                )
+            // ── 按餐类型分组 ─────────────────────────────────────────
+            var sectionIdx = 2
+            IntakeType.entries.forEach { type ->
+                val intakesForType = state.intakes.filter { it.intakeType == type }
+                if (intakesForType.isNotEmpty()) {
+                    item(key = "section_header_$type") {
+                        StaggeredAnimatedItem(index = sectionIdx++) {
+                            DiaryMealHeader(
+                                type = type,
+                                totalKcal = intakesForType.sumOf { intake ->
+                                    val meal = state.meals[intake.mealId]
+                                    (meal?.energyKcal100 ?: 0.0) * intake.amount / 100.0
+                                }
+                            )
+                        }
+                    }
+                    items(intakesForType, key = { "diary_intake_${it.id}" }) { intake ->
+                        val meal = state.meals[intake.mealId]
+                        DiaryIntakeCard(intake = intake, meal = meal)
+                    }
+                }
+            }
+
+            // ── 活动 ─────────────────────────────────────────────────
+            if (state.activities.isNotEmpty()) {
+                item(key = "activity_header") {
+                    StaggeredAnimatedItem(index = sectionIdx++) {
+                        DiaryActivityHeader(
+                            totalKcal = state.activities.sumOf { it.burnedKcal }
+                        )
+                    }
+                }
+                items(state.activities, key = { "diary_activity_${it.id}" }) { activity ->
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+                        ),
+                        elevation = CardDefaults.cardElevation(defaultElevation = Dimens.CardElevationLow),
+                        shape = MaterialTheme.shapes.medium
+                    ) {
+                        ListItem(
+                            headlineContent = {
                                 Text(
-                                    text = mealTypeLabel(type),
-                                    style = MaterialTheme.typography.titleSmall,
-                                    fontWeight = FontWeight.SemiBold,
+                                    text = activity.name,
+                                    style = MaterialTheme.typography.bodyLarge,
                                     color = MaterialTheme.colorScheme.onSurface
                                 )
-                                Spacer(modifier = Modifier.weight(1f))
+                            },
+                            supportingContent = {
                                 Text(
-                                    text = "${intakesForType.sumOf { intake ->
-                                        val meal = state.meals[intake.mealId]
-                                        (meal?.energyKcal100 ?: 0.0) * intake.amount / 100.0
-                                    }.roundToInt()} kcal",
+                                    text = "${activity.durationMinutes.roundToInt()}分钟 · ${activity.burnedKcal.roundToInt()} kcal",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
-                            }
-                        }
-                        items(intakesForType) { intake ->
-                            val meal = state.meals[intake.mealId]
-                            Card(
-                                modifier = Modifier.fillMaxWidth(),
-                                colors = CardDefaults.cardColors(
-                                    containerColor = MaterialTheme.colorScheme.surfaceContainerLow
-                                ),
-                                elevation = CardDefaults.cardElevation(defaultElevation = 0.5.dp)
-                            ) {
-                                ListItem(
-                                    headlineContent = {
-                                        Text(
-                                            text = meal?.name ?: "未知",
-                                            style = MaterialTheme.typography.bodyLarge,
-                                            color = MaterialTheme.colorScheme.onSurface
-                                        )
-                                    },
-                                    supportingContent = {
-                                        Text(
-                                            text = "${intake.amount.roundToInt()}g · ${(meal?.energyKcal100?.times(intake.amount)?.div(100))?.roundToInt()} kcal",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                    },
-                                    colors = ListItemDefaults.colors(
-                                        containerColor = MaterialTheme.colorScheme.surfaceContainerLow
-                                    )
+                            },
+                            leadingContent = {
+                                Icon(
+                                    Icons.Filled.LocalFireDepartment,
+                                    contentDescription = null,
+                                    tint = BurnColor,
+                                    modifier = Modifier.size(Dimens.IconSizeMedium)
                                 )
-                            }
-                        }
-                    }
-                }
-
-                // Activities
-                if (state.activities.isNotEmpty()) {
-                    item {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(top = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            Icon(
-                                Icons.Filled.DirectionsRun,
-                                contentDescription = null,
-                                modifier = Modifier.size(20.dp),
-                                tint = MaterialTheme.colorScheme.primary
-                            )
-                            Text(
-                                text = "活动",
-                                style = MaterialTheme.typography.titleSmall,
-                                fontWeight = FontWeight.SemiBold,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                            Spacer(modifier = Modifier.weight(1f))
-                            Text(
-                                text = "${state.activities.sumOf { it.burnedKcal }.roundToInt()} kcal",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-                    items(state.activities) { activity ->
-                        Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = CardDefaults.cardColors(
+                            },
+                            colors = ListItemDefaults.colors(
                                 containerColor = MaterialTheme.colorScheme.surfaceContainerLow
-                            ),
-                            elevation = CardDefaults.cardElevation(defaultElevation = 0.5.dp)
-                        ) {
-                            ListItem(
-                                headlineContent = {
-                                    Text(
-                                        text = activity.name,
-                                        style = MaterialTheme.typography.bodyLarge,
-                                        color = MaterialTheme.colorScheme.onSurface
-                                    )
-                                },
-                                supportingContent = {
-                                    Text(
-                                        text = "${activity.durationMinutes.roundToInt()}分钟 · ${activity.burnedKcal.roundToInt()} kcal",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                },
-                                colors = ListItemDefaults.colors(
-                                    containerColor = MaterialTheme.colorScheme.surfaceContainerLow
-                                )
                             )
-                        }
+                        )
                     }
                 }
             }
         }
+    }
+}
+
+// ── 日记餐食分组头 ──────────────────────────────────────────────────────────
+
+@Composable
+private fun DiaryMealHeader(type: IntakeType, totalKcal: Double) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Icon(
+            mealTypeIcon(type),
+            contentDescription = null,
+            modifier = Modifier.size(Dimens.IconSizeMedium),
+            tint = MaterialTheme.colorScheme.primary
+        )
+        Text(
+            text = mealTypeLabel(type),
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onSurface
+        )
+        Spacer(modifier = Modifier.weight(1f))
+        Text(
+            text = "${totalKcal.roundToInt()} kcal",
+            style = MaterialTheme.typography.bodySmall,
+            fontWeight = FontWeight.Medium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+}
+
+// ── 日记活动头 ──────────────────────────────────────────────────────────────
+
+@Composable
+private fun DiaryActivityHeader(totalKcal: Double) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Icon(
+            Icons.Filled.DirectionsRun,
+            contentDescription = null,
+            modifier = Modifier.size(Dimens.IconSizeMedium),
+            tint = BurnColor
+        )
+        Text(
+            text = "活动",
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onSurface
+        )
+        Spacer(modifier = Modifier.weight(1f))
+        Text(
+            text = "${totalKcal.roundToInt()} kcal",
+            style = MaterialTheme.typography.bodySmall,
+            fontWeight = FontWeight.Medium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+}
+
+// ── 日记摄入卡片 ────────────────────────────────────────────────────────────
+
+@Composable
+private fun DiaryIntakeCard(
+    intake: com.example.nutritracker.data.entity.Intake,
+    meal: com.example.nutritracker.data.entity.Meal?
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = Dimens.CardElevationLow),
+        shape = MaterialTheme.shapes.medium
+    ) {
+        ListItem(
+            headlineContent = {
+                Text(
+                    text = meal?.name ?: "未知",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            },
+            supportingContent = {
+                Text(
+                    text = "${intake.amount.roundToInt()}g · ${(meal?.energyKcal100?.times(intake.amount)?.div(100))?.roundToInt()} kcal",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            },
+            colors = ListItemDefaults.colors(
+                containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+            )
+        )
     }
 }

@@ -23,9 +23,16 @@ import kotlin.math.roundToInt
 @Composable
 fun MealEditScreen(
     onBack: () -> Unit,
+    onSaveSuccess: () -> Unit,
     vm: MealEditViewModel = hiltViewModel()
 ) {
     val state = vm.state
+
+    LaunchedEffect(vm.isSaveCompleted) {
+        if (vm.isSaveCompleted) {
+            onSaveSuccess()
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -39,7 +46,7 @@ fun MealEditScreen(
                     )
                 },
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
+                    IconButton(onClick = onBack, enabled = !vm.isSaving) {
                         Icon(
                             Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = "返回",
@@ -48,12 +55,23 @@ fun MealEditScreen(
                     }
                 },
                 actions = {
-                    IconButton(onClick = { vm.save(); onBack() }) {
-                        Icon(
-                            Icons.Filled.Save,
-                            contentDescription = "保存",
-                            tint = MaterialTheme.colorScheme.primary
-                        )
+                    IconButton(
+                        onClick = { vm.save() },
+                        enabled = !vm.isSaving && !vm.isSaveCompleted
+                    ) {
+                        if (vm.isSaving) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(20.dp),
+                                color = MaterialTheme.colorScheme.primary,
+                                strokeWidth = 2.dp
+                            )
+                        } else {
+                            Icon(
+                                Icons.Filled.Save,
+                                contentDescription = "保存",
+                                tint = if (vm.isSaving) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f) else MaterialTheme.colorScheme.primary
+                            )
+                        }
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -75,6 +93,7 @@ fun MealEditScreen(
             OutlinedTextField(
                 value = state.name,
                 onValueChange = { vm.updateName(it) },
+                enabled = !vm.isSaving,
                 label = {
                     Text(
                         text = "食物名称",
@@ -99,6 +118,7 @@ fun MealEditScreen(
             OutlinedTextField(
                 value = state.amountStr,
                 onValueChange = { vm.updateAmount(it) },
+                enabled = !vm.isSaving,
                 label = {
                     Text(
                         text = "份量 (g)",
@@ -129,14 +149,14 @@ fun MealEditScreen(
                 modifier = Modifier.padding(top = 8.dp)
             )
 
-            NutrientField("卡路里 (kcal)", state.energyStr) { vm.updateEnergy(it) }
-            NutrientField("碳水化合物 (g)", state.carbsStr) { vm.updateCarbs(it) }
-            NutrientField("脂肪 (g)", state.fatStr) { vm.updateFat(it) }
-            NutrientField("蛋白质 (g)", state.proteinStr) { vm.updateProtein(it) }
-            NutrientField("糖 (g)", state.sugarsStr) { vm.updateSugars(it) }
-            NutrientField("饱和脂肪 (g)", state.satFatStr) { vm.updateSatFat(it) }
-            NutrientField("膳食纤维 (g)", state.fiberStr) { vm.updateFiber(it) }
-            NutrientField("钠 (mg)", state.sodiumStr) { vm.updateSodium(it) }
+            NutrientField("卡路里 (kcal)", state.energyStr, enabled = !vm.isSaving) { vm.updateEnergy(it) }
+            NutrientField("碳水化合物 (g)", state.carbsStr, enabled = !vm.isSaving) { vm.updateCarbs(it) }
+            NutrientField("脂肪 (g)", state.fatStr, enabled = !vm.isSaving) { vm.updateFat(it) }
+            NutrientField("蛋白质 (g)", state.proteinStr, enabled = !vm.isSaving) { vm.updateProtein(it) }
+            NutrientField("糖 (g)", state.sugarsStr, enabled = !vm.isSaving) { vm.updateSugars(it) }
+            NutrientField("饱和脂肪 (g)", state.satFatStr, enabled = !vm.isSaving) { vm.updateSatFat(it) }
+            NutrientField("膳食纤维 (g)", state.fiberStr, enabled = !vm.isSaving) { vm.updateFiber(it) }
+            NutrientField("钠 (mg)", state.sodiumStr, enabled = !vm.isSaving) { vm.updateSodium(it) }
 
             HorizontalDivider(
                 color = MaterialTheme.colorScheme.outlineVariant,
@@ -202,6 +222,7 @@ fun MealEditScreen(
                     FilterChip(
                         selected = vm.intakeType == type,
                         onClick = { vm.intakeType = type },
+                        enabled = !vm.isSaving,
                         label = {
                             Text(
                                 text = mealTypeLabel(type),
@@ -224,7 +245,8 @@ fun MealEditScreen(
 
             // Record button
             Button(
-                onClick = { vm.saveIntake(); onBack() },
+                onClick = { vm.saveIntake() },
+                enabled = !vm.isSaving && !vm.isSaveCompleted,
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(56.dp),
@@ -234,11 +256,19 @@ fun MealEditScreen(
                 ),
                 shape = MaterialTheme.shapes.medium
             ) {
-                Text(
-                    text = "记录此餐",
-                    style = MaterialTheme.typography.labelLarge,
-                    fontWeight = FontWeight.Medium
-                )
+                if (vm.isSaving) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(24.dp),
+                        color = MaterialTheme.colorScheme.onPrimary,
+                        strokeWidth = 2.dp
+                    )
+                } else {
+                    Text(
+                        text = if (vm.isEditing) "保存修改" else "记录此餐",
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
             }
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -250,11 +280,13 @@ fun MealEditScreen(
 private fun NutrientField(
     label: String,
     value: String,
+    enabled: Boolean = true,
     onChange: (String) -> Unit
 ) {
     OutlinedTextField(
         value = value,
         onValueChange = onChange,
+        enabled = enabled,
         label = {
             Text(
                 text = label,

@@ -2,7 +2,8 @@ package com.example.nutritracker.feature.profile
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
+import com.example.nutritracker.ui.theme.StaggeredAnimatedItem
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
@@ -30,6 +31,7 @@ fun WeightHistoryScreen(
 ) {
     val weightLogs by vm.weightLogs.collectAsStateWithLifecycle()
     var showAddDialog by remember { mutableStateOf(false) }
+    var deleteConfirmDate by remember { mutableStateOf<java.time.LocalDate?>(null) }
 
     Scaffold(
         topBar = {
@@ -178,48 +180,50 @@ fun WeightHistoryScreen(
                     )
                 }
 
-                items(weightLogs) { log ->
-                    ElevatedCard(
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.elevatedCardColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
-                        ),
-                        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 0.5.dp)
-                    ) {
-                        ListItem(
-                            headlineContent = {
-                                Text(
-                                    text = "%.1f kg".format(log.weightKg),
-                                    style = MaterialTheme.typography.bodyLarge,
-                                    fontWeight = FontWeight.Medium,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                            },
-                            supportingContent = {
-                                Text(
-                                    text = log.date.format(DateTimeFormatter.ISO_LOCAL_DATE),
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            },
-                            trailingContent = {
-                                IconButton(
-                                    onClick = { vm.deleteWeightLog(log.date) },
-                                    modifier = Modifier.size(40.dp)
-                                ) {
-                                    Icon(
-                                        Icons.Filled.Delete,
-                                        contentDescription = "删除",
-                                        tint = MaterialTheme.colorScheme.error,
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                }
-                            },
-                            colors = ListItemDefaults.colors(
+                itemsIndexed(weightLogs) { index, log ->
+                    StaggeredAnimatedItem(index = index) {
+                        ElevatedCard(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.elevatedCardColors(
                                 containerColor = MaterialTheme.colorScheme.surfaceContainerLow
                             ),
-                            modifier = Modifier.fillMaxWidth()
-                        )
+                            elevation = CardDefaults.elevatedCardElevation(defaultElevation = 0.5.dp)
+                        ) {
+                            ListItem(
+                                headlineContent = {
+                                    Text(
+                                        text = "%.1f kg".format(log.weightKg),
+                                        style = MaterialTheme.typography.bodyLarge,
+                                        fontWeight = FontWeight.Medium,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                },
+                                supportingContent = {
+                                    Text(
+                                        text = log.date.format(DateTimeFormatter.ISO_LOCAL_DATE),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                },
+                                trailingContent = {
+                                    IconButton(
+                                        onClick = { deleteConfirmDate = log.date },
+                                        modifier = Modifier.size(40.dp)
+                                    ) {
+                                        Icon(
+                                            Icons.Filled.Delete,
+                                            contentDescription = "删除",
+                                            tint = MaterialTheme.colorScheme.error,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    }
+                                },
+                                colors = ListItemDefaults.colors(
+                                    containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+                                ),
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
                     }
                 }
             }
@@ -285,6 +289,29 @@ fun WeightHistoryScreen(
                 ) {
                     Text("取消")
                 }
+            },
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+            titleContentColor = MaterialTheme.colorScheme.onSurface,
+            textContentColor = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+
+    if (deleteConfirmDate != null) {
+        AlertDialog(
+            onDismissRequest = { deleteConfirmDate = null },
+            title = { Text("确认删除") },
+            text = { Text("确定要删除该天的体重记录吗？") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        deleteConfirmDate?.let { vm.deleteWeightLog(it) }
+                        deleteConfirmDate = null
+                    },
+                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                ) { Text("删除") }
+            },
+            dismissButton = {
+                TextButton(onClick = { deleteConfirmDate = null }) { Text("取消") }
             },
             containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
             titleContentColor = MaterialTheme.colorScheme.onSurface,

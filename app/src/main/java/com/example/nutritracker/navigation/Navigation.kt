@@ -24,6 +24,7 @@ sealed class Screen(val route: String) {
     }
     data object AddActivity : Screen("add_activity")
     data object WeightHistory : Screen("weight_history")
+    data object Sources : Screen("sources")
 }
 
 data class BottomNavItem(

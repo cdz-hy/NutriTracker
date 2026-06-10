@@ -1,7 +1,10 @@
 package com.example.nutritracker.feature.settings
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -10,6 +13,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -17,11 +21,16 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.nutritracker.ui.theme.Dimens
+import com.example.nutritracker.ui.theme.SuccessColor
 import kotlin.math.roundToInt
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsScreen(vm: SettingsViewModel = hiltViewModel()) {
+fun SettingsScreen(
+    onNavigateToSources: () -> Unit,
+    vm: SettingsViewModel = hiltViewModel()
+) {
     val state by vm.state.collectAsStateWithLifecycle()
     var showMacroDialog by remember { mutableStateOf(false) }
     var showAiDialog by remember { mutableStateOf(false) }
@@ -30,7 +39,8 @@ fun SettingsScreen(vm: SettingsViewModel = hiltViewModel()) {
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 16.dp)
+            .padding(horizontal = Dimens.ContentPadding),
+        verticalArrangement = Arrangement.spacedBy(Dimens.CardSpacing)
     ) {
         // Header
         Text(
@@ -38,17 +48,11 @@ fun SettingsScreen(vm: SettingsViewModel = hiltViewModel()) {
             style = MaterialTheme.typography.headlineMedium,
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.onSurface,
-            modifier = Modifier.padding(vertical = 16.dp)
+            modifier = Modifier.padding(vertical = Dimens.ContentPadding)
         )
 
         // Calculations section
-        Text(
-            text = "计算",
-            style = MaterialTheme.typography.titleSmall,
-            fontWeight = FontWeight.SemiBold,
-            color = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.padding(bottom = 12.dp)
-        )
+        SectionTitle(icon = Icons.Filled.Calculate, title = "计算")
 
         // Day boundary
         ElevatedCard(
@@ -67,6 +71,11 @@ fun SettingsScreen(vm: SettingsViewModel = hiltViewModel()) {
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.Medium,
                     color = MaterialTheme.colorScheme.onSurface
+                )
+                Text(
+                    text = "设定一天的起始时间。例如设为 270 分钟(4:30)，则凌晨 4:30 前的记录算作前一天",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -104,7 +113,6 @@ fun SettingsScreen(vm: SettingsViewModel = hiltViewModel()) {
             }
         }
 
-        Spacer(modifier = Modifier.height(12.dp))
 
         // Kcal adjustment
         ElevatedCard(
@@ -123,6 +131,11 @@ fun SettingsScreen(vm: SettingsViewModel = hiltViewModel()) {
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.Medium,
                     color = MaterialTheme.colorScheme.onSurface
+                )
+                Text(
+                    text = "在系统计算的 TDEE 基础上，手动增加或减少每日卡路里目标",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 OutlinedTextField(
                     value = state.kcalAdjStr,
@@ -150,7 +163,6 @@ fun SettingsScreen(vm: SettingsViewModel = hiltViewModel()) {
             }
         }
 
-        Spacer(modifier = Modifier.height(12.dp))
 
         // Macro split
         ElevatedCard(
@@ -170,11 +182,18 @@ fun SettingsScreen(vm: SettingsViewModel = hiltViewModel()) {
                     )
                 },
                 supportingContent = {
-                    Text(
-                        text = "碳水 ${state.carbPct.roundToInt()}% / 脂肪 ${state.fatPct.roundToInt()}% / 蛋白质 ${state.proteinPct.roundToInt()}%",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    Column {
+                        Text(
+                            text = "碳水 ${(state.carbPct * 100).roundToInt()}% / 脂肪 ${(state.fatPct * 100).roundToInt()}% / 蛋白质 ${(state.proteinPct * 100).roundToInt()}%",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            text = "自定义碳水、脂肪、蛋白质的每日目标比例，总和需为 100%",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                        )
+                    }
                 },
                 trailingContent = {
                     TextButton(
@@ -193,7 +212,6 @@ fun SettingsScreen(vm: SettingsViewModel = hiltViewModel()) {
             )
         }
 
-        Spacer(modifier = Modifier.height(12.dp))
 
         // Water goal
         ElevatedCard(
@@ -212,6 +230,11 @@ fun SettingsScreen(vm: SettingsViewModel = hiltViewModel()) {
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.Medium,
                     color = MaterialTheme.colorScheme.onSurface
+                )
+                Text(
+                    text = "设置每天的饮水量目标，首页会显示饮水进度",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 OutlinedTextField(
                     value = state.waterGoalStr,
@@ -239,21 +262,14 @@ fun SettingsScreen(vm: SettingsViewModel = hiltViewModel()) {
             }
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(8.dp))
 
         HorizontalDivider(
-            color = MaterialTheme.colorScheme.outlineVariant,
-            modifier = Modifier.padding(vertical = 8.dp)
+            color = MaterialTheme.colorScheme.outlineVariant
         )
 
         // AI Settings section
-        Text(
-            text = "AI 食物识别",
-            style = MaterialTheme.typography.titleSmall,
-            fontWeight = FontWeight.SemiBold,
-            color = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.padding(bottom = 12.dp)
-        )
+        SectionTitle(icon = Icons.Filled.SmartToy, title = "AI 食物识别")
 
         ElevatedCard(
             modifier = Modifier.fillMaxWidth(),
@@ -264,20 +280,41 @@ fun SettingsScreen(vm: SettingsViewModel = hiltViewModel()) {
         ) {
             ListItem(
                 headlineContent = {
-                    Text(
-                        text = "AI API 配置",
-                        style = MaterialTheme.typography.bodyLarge,
-                        fontWeight = FontWeight.Medium,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(
+                            text = "AI API 配置",
+                            style = MaterialTheme.typography.bodyLarge,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Box(
+                            modifier = Modifier
+                                .size(8.dp)
+                                .background(
+                                    color = if (state.aiApiKey.isBlank()) MaterialTheme.colorScheme.outline
+                                           else SuccessColor,
+                                    shape = CircleShape
+                                )
+                        )
+                    }
                 },
                 supportingContent = {
-                    Text(
-                        text = if (state.aiApiKey.isBlank()) "未配置 - 请设置 API Key"
-                        else "模型: ${state.aiModel}  ·  已配置",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    Column {
+                        Text(
+                            text = if (state.aiApiKey.isBlank()) "未配置 - 请设置 API Key"
+                            else "模型: ${state.aiModel}  ·  已配置",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            text = "拍照识别食物营养成分，支持 OpenAI 兼容接口等",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                        )
+                    }
                 },
                 trailingContent = {
                     TextButton(
@@ -296,21 +333,14 @@ fun SettingsScreen(vm: SettingsViewModel = hiltViewModel()) {
             )
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(8.dp))
 
         HorizontalDivider(
-            color = MaterialTheme.colorScheme.outlineVariant,
-            modifier = Modifier.padding(vertical = 8.dp)
+            color = MaterialTheme.colorScheme.outlineVariant
         )
 
         // About section
-        Text(
-            text = "关于",
-            style = MaterialTheme.typography.titleSmall,
-            fontWeight = FontWeight.SemiBold,
-            color = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.padding(bottom = 12.dp)
-        )
+        SectionTitle(icon = Icons.Filled.Info, title = "关于")
 
         ElevatedCard(
             modifier = Modifier.fillMaxWidth(),
@@ -350,7 +380,53 @@ fun SettingsScreen(vm: SettingsViewModel = hiltViewModel()) {
             )
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
+
+        ElevatedCard(
+            modifier = Modifier.fillMaxWidth().clickable { onNavigateToSources() },
+            colors = CardDefaults.elevatedCardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+            ),
+            elevation = CardDefaults.elevatedCardElevation(defaultElevation = 1.dp)
+        ) {
+            ListItem(
+                headlineContent = {
+                    Text(
+                        text = "科学文献来源与依据",
+                        style = MaterialTheme.typography.bodyLarge,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                },
+                supportingContent = {
+                    Text(
+                        text = "查看医学方程与营养摄入量推荐的数据出处",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                },
+                leadingContent = {
+                    Icon(
+                        Icons.Filled.MenuBook,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(24.dp)
+                    )
+                },
+                trailingContent = {
+                    Icon(
+                        Icons.Filled.ChevronRight,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                },
+                colors = ListItemDefaults.colors(
+                    containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+                ),
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+
+        Spacer(modifier = Modifier.height(Dimens.SectionSpacing))
     }
 
     // Macro dialog
@@ -377,7 +453,8 @@ fun SettingsScreen(vm: SettingsViewModel = hiltViewModel()) {
             onConfirm = { key, url, model ->
                 vm.updateAiConfig(key, url, model)
                 showAiDialog = false
-            }
+            },
+            vm = vm
         )
     }
 }
@@ -525,15 +602,20 @@ private fun AiConfigDialog(
     baseUrl: String,
     model: String,
     onDismiss: () -> Unit,
-    onConfirm: (String, String, String) -> Unit
+    onConfirm: (String, String, String) -> Unit,
+    vm: SettingsViewModel = hiltViewModel()
 ) {
     var key by remember { mutableStateOf(apiKey) }
     var url by remember { mutableStateOf(baseUrl) }
     var mdl by remember { mutableStateOf(model) }
     var showKey by remember { mutableStateOf(false) }
+    val testState by vm.testState.collectAsStateWithLifecycle()
 
     AlertDialog(
-        onDismissRequest = onDismiss,
+        onDismissRequest = {
+            vm.resetTestState()
+            onDismiss()
+        },
         title = {
             Text(
                 text = "AI API 配置",
@@ -625,8 +707,87 @@ private fun AiConfigDialog(
                         unfocusedTextColor = MaterialTheme.colorScheme.onSurface
                     )
                 )
+
+                // 测试按钮
+                val canTest = key.isNotBlank() && url.isNotBlank() && mdl.isNotBlank()
+                val (status, message) = testState
+
+                OutlinedButton(
+                    onClick = { vm.testAiConnection(key, url, mdl) },
+                    enabled = canTest && status != TestStatus.TESTING,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = when (status) {
+                            TestStatus.SUCCESS -> MaterialTheme.colorScheme.primary
+                            TestStatus.FAILURE -> MaterialTheme.colorScheme.error
+                            else -> MaterialTheme.colorScheme.primary
+                        }
+                    ),
+                    border = ButtonDefaults.outlinedButtonBorder(enabled = canTest).copy(
+                        brush = androidx.compose.ui.graphics.SolidColor(
+                            when (status) {
+                                TestStatus.SUCCESS -> MaterialTheme.colorScheme.primary
+                                TestStatus.FAILURE -> MaterialTheme.colorScheme.error
+                                else -> MaterialTheme.colorScheme.outline
+                            }
+                        )
+                    )
+                ) {
+                    if (status == TestStatus.TESTING) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(16.dp),
+                            strokeWidth = 2.dp,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("测试中...")
+                    } else {
+                        Icon(
+                            when (status) {
+                                TestStatus.SUCCESS -> Icons.Filled.CheckCircle
+                                TestStatus.FAILURE -> Icons.Filled.Error
+                                else -> Icons.Filled.NetworkCheck
+                            },
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            when (status) {
+                                TestStatus.SUCCESS -> "测试通过"
+                                TestStatus.FAILURE -> "重新测试"
+                                else -> "测试连接"
+                            }
+                        )
+                    }
+                }
+
+                // 测试结果提示
+                if (status != TestStatus.IDLE && message.isNotBlank()) {
+                    Card(
+                        colors = CardDefaults.cardColors(
+                            containerColor = when (status) {
+                                TestStatus.SUCCESS -> MaterialTheme.colorScheme.primaryContainer
+                                TestStatus.FAILURE -> MaterialTheme.colorScheme.errorContainer
+                                else -> MaterialTheme.colorScheme.surfaceVariant
+                            }
+                        )
+                    ) {
+                        Text(
+                            text = message,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = when (status) {
+                                TestStatus.SUCCESS -> MaterialTheme.colorScheme.onPrimaryContainer
+                                TestStatus.FAILURE -> MaterialTheme.colorScheme.onErrorContainer
+                                else -> MaterialTheme.colorScheme.onSurfaceVariant
+                            },
+                            modifier = Modifier.padding(12.dp)
+                        )
+                    }
+                }
+
                 Text(
-                    text = "支持: GPT-4o, Claude, Gemini, 本地模型等",
+                    text = "支持 OpenAI、Claude、Gemini 等兼容接口",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -634,7 +795,10 @@ private fun AiConfigDialog(
         },
         confirmButton = {
             TextButton(
-                onClick = { onConfirm(key, url, mdl) },
+                onClick = {
+                    vm.resetTestState()
+                    onConfirm(key, url, mdl)
+                },
                 enabled = key.isNotBlank(),
                 colors = ButtonDefaults.textButtonColors(
                     contentColor = MaterialTheme.colorScheme.primary
@@ -645,7 +809,10 @@ private fun AiConfigDialog(
         },
         dismissButton = {
             TextButton(
-                onClick = onDismiss,
+                onClick = {
+                    vm.resetTestState()
+                    onDismiss()
+                },
                 colors = ButtonDefaults.textButtonColors(
                     contentColor = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -657,4 +824,40 @@ private fun AiConfigDialog(
         titleContentColor = MaterialTheme.colorScheme.onSurface,
         textContentColor = MaterialTheme.colorScheme.onSurfaceVariant
     )
+}
+
+@Composable
+private fun SectionTitle(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    title: String
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .width(4.dp)
+                .height(18.dp)
+                .background(
+                    color = MaterialTheme.colorScheme.primary,
+                    shape = CircleShape
+                )
+        )
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.size(20.dp)
+        )
+        Text(
+            text = title,
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.primary
+        )
+    }
 }

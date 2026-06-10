@@ -4,19 +4,22 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavType
+import androidx.compose.animation.*
+import androidx.compose.animation.core.tween
 import androidx.navigation.compose.*
 import androidx.navigation.navArgument
 import com.example.nutritracker.feature.home.HomeScreen
@@ -30,6 +33,7 @@ import com.example.nutritracker.feature.meal.MealEditScreen
 import com.example.nutritracker.feature.meal.AddMealScreen
 import com.example.nutritracker.feature.camera.CameraCaptureScreen
 import com.example.nutritracker.feature.activity.AddActivityScreen
+import com.example.nutritracker.feature.sources.SourcesScreen
 import com.example.nutritracker.navigation.Screen
 import com.example.nutritracker.ui.theme.NutriTrackerTheme
 import dagger.hilt.android.AndroidEntryPoint
@@ -47,16 +51,40 @@ class MainActivity : ComponentActivity() {
 fun NutriTrackerNav() {
     val rootNav = rememberNavController()
     val vm: HomeViewModel = hiltViewModel()
-    val onboardingDone by vm.onboardingDone.collectAsStateWithLifecycle(initialValue = false)
-    val startDest = if (onboardingDone) "main" else Screen.Onboarding.route
+    val onboardingDone by vm.onboardingDone.collectAsStateWithLifecycle(initialValue = null)
 
-    NavHost(navController = rootNav, startDestination = startDest) {
+    // 等待 DataStore 加载完成，避免闪屏
+    if (onboardingDone == null) {
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
+        }
+        return
+    }
+
+    val startDest = if (onboardingDone == true) "main" else Screen.Onboarding.route
+
+    NavHost(
+        navController = rootNav,
+        startDestination = startDest,
+        enterTransition = { fadeIn(tween(300)) + slideInHorizontally(animationSpec = tween(300), initialOffsetX = { it / 4 }) },
+        exitTransition = { fadeOut(tween(300)) + slideOutHorizontally(animationSpec = tween(300), targetOffsetX = { -it / 4 }) },
+        popEnterTransition = { fadeIn(tween(300)) + slideInHorizontally(animationSpec = tween(300), initialOffsetX = { -it / 4 }) },
+        popExitTransition = { fadeOut(tween(300)) + slideOutHorizontally(animationSpec = tween(300), targetOffsetX = { it / 4 }) }
+    ) {
         composable(Screen.Onboarding.route) {
-            OnboardingScreen(onDone = {
-                rootNav.navigate("main") {
-                    popUpTo(Screen.Onboarding.route) { inclusive = true }
+            OnboardingScreen(
+                onDone = {
+                    rootNav.navigate("main") {
+                        popUpTo(Screen.Onboarding.route) { inclusive = true }
+                    }
+                },
+                onNavigateToSources = {
+                    rootNav.navigate(Screen.Sources.route)
                 }
-            })
+            )
         }
         composable("main") { MainScaffold(rootNav) }
         composable(
@@ -76,8 +104,8 @@ fun NutriTrackerNav() {
         }
         composable(Screen.CameraCapture.route) {
             CameraCaptureScreen(
-                onResult = { result ->
-                    rootNav.previousBackStackEntry?.savedStateHandle?.set("nutrition_result", result)
+                onImageSelected = { uri ->
+                    rootNav.previousBackStackEntry?.savedStateHandle?.set("selected_image_uri", uri.toString())
                     rootNav.popBackStack()
                 },
                 onBack = { rootNav.popBackStack() }
@@ -90,13 +118,22 @@ fun NutriTrackerNav() {
                 navArgument("intakeTypeId") { type = NavType.IntType; defaultValue = 0 }
             )
         ) {
-            MealEditScreen(onBack = { rootNav.popBackStack() })
+            MealEditScreen(
+                onBack = { rootNav.popBackStack() },
+                onSaveSuccess = {
+                    rootNav.previousBackStackEntry?.savedStateHandle?.set("meal_edited", true)
+                    rootNav.popBackStack()
+                }
+            )
         }
         composable(Screen.AddActivity.route) {
             AddActivityScreen(onBack = { rootNav.popBackStack() })
         }
         composable(Screen.WeightHistory.route) {
             WeightHistoryScreen(onBack = { rootNav.popBackStack() })
+        }
+        composable(Screen.Sources.route) {
+            SourcesScreen(onBack = { rootNav.popBackStack() })
         }
     }
 }
@@ -159,9 +196,11 @@ fun MainScaffold(rootNav: androidx.navigation.NavHostController) {
         }
     ) { padding ->
         NavHost(
-            tabNav,
+            navController = tabNav,
             startDestination = Screen.Home.route,
-            Modifier.padding(padding)
+            modifier = Modifier.padding(padding),
+            enterTransition = { fadeIn(animationSpec = tween(220)) },
+            exitTransition = { fadeOut(animationSpec = tween(220)) }
         ) {
             composable(Screen.Home.route) {
                 HomeScreen(
@@ -170,18 +209,36 @@ fun MainScaffold(rootNav: androidx.navigation.NavHostController) {
                     },
                     onNavigateToAddActivity = {
                         rootNav.navigate(Screen.AddActivity.route)
+                    },
+                    onNavigateToSources = {
+                        rootNav.navigate(Screen.Sources.route)
                     }
                 )
             }
-            composable(Screen.Diary.route) { DiaryScreen() }
+            composable(Screen.Diary.route) {
+                DiaryScreen(
+                    onNavigateToSources = {
+                        rootNav.navigate(Screen.Sources.route)
+                    }
+                )
+            }
             composable(Screen.Profile.route) {
                 ProfileScreen(
                     onNavigateToWeightHistory = {
                         rootNav.navigate(Screen.WeightHistory.route)
+                    },
+                    onNavigateToSources = {
+                        rootNav.navigate(Screen.Sources.route)
                     }
                 )
             }
-            composable(Screen.Settings.route) { SettingsScreen() }
+            composable(Screen.Settings.route) {
+                SettingsScreen(
+                    onNavigateToSources = {
+                        rootNav.navigate(Screen.Sources.route)
+                    }
+                )
+            }
         }
     }
 }

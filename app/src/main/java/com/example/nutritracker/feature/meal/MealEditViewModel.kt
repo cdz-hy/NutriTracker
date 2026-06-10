@@ -44,12 +44,20 @@ class MealEditViewModel @Inject constructor(
         private set
     var intakeType by mutableStateOf(IntakeType.entries.getOrElse(intakeTypeId) { IntakeType.BREAKFAST })
 
+    var isSaving by mutableStateOf(false)
+        private set
+    var isSaveCompleted by mutableStateOf(false)
+        private set
+
     init {
         if (isEditing) {
             viewModelScope.launch {
-                mealRepo.getById(mealId)?.let { meal ->
+                val meal = mealRepo.getById(mealId)
+                val intake = intakeRepo.getByMealId(mealId)
+                if (meal != null) {
                     state = MealEditState(
                         name = meal.name,
+                        amountStr = intake?.amount?.toInt()?.toString() ?: "100",
                         energyStr = meal.energyKcal100.toString(),
                         carbsStr = meal.carbohydrates100.toString(),
                         fatStr = meal.fat100.toString(),
@@ -59,6 +67,9 @@ class MealEditViewModel @Inject constructor(
                         fiberStr = meal.fiber100?.toString() ?: "",
                         sodiumStr = meal.sodium100?.toString() ?: ""
                     )
+                    intake?.let {
+                        intakeType = it.intakeType
+                    }
                 }
             }
         }
@@ -93,27 +104,74 @@ class MealEditViewModel @Inject constructor(
     }
 
     fun save() {
-        val meal = buildMeal() ?: return
-        viewModelScope.launch { mealRepo.upsert(meal) }
+        saveIntake()
     }
 
     fun saveIntake() {
         val meal = buildMeal() ?: return
         val amount = state.amountStr.toDoubleOrNull() ?: 100.0
         viewModelScope.launch {
-            val savedMealId = mealRepo.upsert(meal)
-            val now = LocalDateTime.now()
-            intakeRepo.upsert(Intake(mealId = savedMealId, intakeType = intakeType, amount = amount, dateTime = now))
-            val offset = settingsRepo.dayBoundaryMinutes.first()
-            val day = dayBoundaryCalc.logicalDayOf(now, offset)
-            trackedDayRepo.ensureDay(day, 0.0, 0.0, 0.0, 0.0)
-            trackedDayRepo.addCalories(
-                day,
-                meal.energyKcal100 * amount / 100.0,
-                meal.carbohydrates100 * amount / 100.0,
-                meal.fat100 * amount / 100.0,
-                meal.proteins100 * amount / 100.0
-            )
+            isSaving = true
+            try {
+                if (isEditing) {
+                    val oldMeal = mealRepo.getById(mealId)
+                    val oldIntake = intakeRepo.getByMealId(mealId)
+                    if (oldMeal != null && oldIntake != null) {
+                        val offset = settingsRepo.dayBoundaryMinutes.first()
+                        val day = dayBoundaryCalc.logicalDayOf(oldIntake.dateTime, offset)
+
+                        // 1. 移除旧的卡路里贡献
+                        val oldFactor = oldIntake.amount / 100.0
+                        trackedDayRepo.removeCalories(
+                            day,
+                            oldMeal.energyKcal100 * oldFactor,
+                            oldMeal.carbohydrates100 * oldFactor,
+                            oldMeal.fat100 * oldFactor,
+                            oldMeal.proteins100 * oldFactor
+                        )
+
+                        // 2. 保存/更新 Meal
+                        mealRepo.upsert(meal)
+
+                        // 3. 更新 Intake
+                        val updatedIntake = oldIntake.copy(
+                            intakeType = intakeType,
+                            amount = amount
+                        )
+                        intakeRepo.upsert(updatedIntake)
+
+                        // 4. 添加新的卡路里贡献
+                        val newFactor = amount / 100.0
+                        trackedDayRepo.ensureDay(day, 0.0, 0.0, 0.0, 0.0)
+                        trackedDayRepo.addCalories(
+                            day,
+                            meal.energyKcal100 * newFactor,
+                            meal.carbohydrates100 * newFactor,
+                            meal.fat100 * newFactor,
+                            meal.proteins100 * newFactor
+                        )
+                    }
+                } else {
+                    val savedMealId = mealRepo.upsert(meal)
+                    val now = LocalDateTime.now()
+                    intakeRepo.upsert(Intake(mealId = savedMealId, intakeType = intakeType, amount = amount, dateTime = now))
+                    val offset = settingsRepo.dayBoundaryMinutes.first()
+                    val day = dayBoundaryCalc.logicalDayOf(now, offset)
+                    trackedDayRepo.ensureDay(day, 0.0, 0.0, 0.0, 0.0)
+                    trackedDayRepo.addCalories(
+                        day,
+                        meal.energyKcal100 * amount / 100.0,
+                        meal.carbohydrates100 * amount / 100.0,
+                        meal.fat100 * amount / 100.0,
+                        meal.proteins100 * amount / 100.0
+                    )
+                }
+                isSaveCompleted = true
+            } catch (_: Exception) {
+                // Ignore or log error
+            } finally {
+                isSaving = false
+            }
         }
     }
 }

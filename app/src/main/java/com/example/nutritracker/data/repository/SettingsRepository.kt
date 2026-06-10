@@ -36,10 +36,8 @@ class SettingsRepository @Inject constructor(
     val proteinPct: Flow<Double> = context.dataStore.data.map { it[Keys.PROTEIN_PCT] ?: 0.15 }
     val waterGoalMl: Flow<Int> = context.dataStore.data.map { it[Keys.WATER_GOAL_ML] ?: 2000 }
     val aiApiKey: Flow<String> = context.dataStore.data.map { it[Keys.AI_API_KEY] ?: "" }
-    val aiBaseUrl: Flow<String> = context.dataStore.data.map {
-        it[Keys.AI_BASE_URL] ?: "https://api.openai.com/v1"
-    }
-    val aiModel: Flow<String> = context.dataStore.data.map { it[Keys.AI_MODEL] ?: "gpt-4o" }
+    val aiBaseUrl: Flow<String> = context.dataStore.data.map { it[Keys.AI_BASE_URL] ?: "" }
+    val aiModel: Flow<String> = context.dataStore.data.map { it[Keys.AI_MODEL] ?: "" }
     val onboardingDone: Flow<Boolean> = context.dataStore.data.map { it[Keys.ONBOARDING_DONE] ?: false }
 
     suspend fun setDayBoundaryMinutes(v: Int) = context.dataStore.edit { it[Keys.DAY_BOUNDARY_MINUTES] = v }

@@ -60,7 +60,26 @@ class HomeViewModel @Inject constructor(
 
     val onboardingDone: Flow<Boolean> = settingsRepo.onboardingDone
 
-    init { refresh() }
+    init {
+        // 监听设置变化，自动刷新首页
+        viewModelScope.launch {
+            combine(
+                settingsRepo.kcalAdjustment,
+                settingsRepo.carbPct,
+                settingsRepo.fatPct
+            ) { a, b, c -> Triple(a, b, c) }
+            .collect { refresh() }
+        }
+        viewModelScope.launch {
+            combine(
+                settingsRepo.proteinPct,
+                settingsRepo.waterGoalMl,
+                settingsRepo.dayBoundaryMinutes
+            ) { a, b, c -> Triple(a, b, c) }
+            .collect { refresh() }
+        }
+        refresh()
+    }
 
     fun refresh() {
         viewModelScope.launch {
@@ -77,7 +96,11 @@ class HomeViewModel @Inject constructor(
             val waterGoal = settingsRepo.waterGoalMl.first()
 
             val activityBurn = activityRepo.getTotalBurnedByLogicalDay(today, offset)
-            val calorieGoal = CalorieGoalCalc.getTotalKcalGoal(user, activityBurn, kcalAdj)
+            val calorieGoal = CalorieGoalCalc.getTotalKcalGoal(
+                user = user,
+                userKcalAdjustment = kcalAdj,
+                totalKcalActivities = activityBurn
+            )
             val carbsGoal = MacroCalc.getCarbsGoal(calorieGoal, carbPct)
             val fatGoal = MacroCalc.getFatGoal(calorieGoal, fatPct)
             val proteinGoal = MacroCalc.getProteinGoal(calorieGoal, proteinPct)
@@ -134,9 +157,21 @@ class HomeViewModel @Inject constructor(
         }
     }
 
+    fun undoLastWaterIntake() {
+        viewModelScope.launch {
+            val latest = waterRepo.getLatest()
+            if (latest != null) {
+                waterRepo.deleteById(latest.id)
+                refresh()
+            }
+        }
+    }
+
     fun deleteIntake(intake: Intake) {
         viewModelScope.launch {
+            // 先获取 Meal 数据
             val meal = mealRepo.getById(intake.mealId)
+            // 先从 TrackedDay 移除卡路里
             if (meal != null) {
                 val offset = settingsRepo.dayBoundaryMinutes.first()
                 val today = dayBoundaryCalc.logicalDayOf(intake.dateTime, offset)
@@ -148,32 +183,49 @@ class HomeViewModel @Inject constructor(
                     meal.proteins100 * intake.amount / 100.0
                 )
             }
+            // 再删除摄入记录
             intakeRepo.delete(intake)
+            refresh()
+        }
+    }
+
+    /**
+     * 更新摄入记录的份量
+     */
+    fun updateIntakeAmount(intake: Intake, newAmount: Double) {
+        viewModelScope.launch {
+            val meal = mealRepo.getById(intake.mealId) ?: return@launch
+            val offset = settingsRepo.dayBoundaryMinutes.first()
+            val today = dayBoundaryCalc.logicalDayOf(intake.dateTime, offset)
+
+            // 移除旧的卡路里
+            trackedDayRepo.removeCalories(
+                today,
+                meal.energyKcal100 * intake.amount / 100.0,
+                meal.carbohydrates100 * intake.amount / 100.0,
+                meal.fat100 * intake.amount / 100.0,
+                meal.proteins100 * intake.amount / 100.0
+            )
+
+            // 更新摄入记录
+            val updatedIntake = intake.copy(amount = newAmount)
+            intakeRepo.upsert(updatedIntake)
+
+            // 添加新的卡路里
+            trackedDayRepo.addCalories(
+                today,
+                meal.energyKcal100 * newAmount / 100.0,
+                meal.carbohydrates100 * newAmount / 100.0,
+                meal.fat100 * newAmount / 100.0,
+                meal.proteins100 * newAmount / 100.0
+            )
+
             refresh()
         }
     }
 
     fun deleteActivity(activity: UserActivityEntity) {
         viewModelScope.launch {
-            val offset = settingsRepo.dayBoundaryMinutes.first()
-            val today = dayBoundaryCalc.logicalDayOf(activity.dateTime, offset)
-            // Reduce day's calorie goal to reverse the activity's boost
-            val user = userRepo.getUser() ?: return@launch
-            val kcalAdj = settingsRepo.kcalAdjustment.first()
-            val carbPct = settingsRepo.carbPct.first()
-            val fatPct = settingsRepo.fatPct.first()
-            val proteinPct = settingsRepo.proteinPct.first()
-            val remainingBurn = activityRepo.getTotalBurnedByLogicalDay(today, offset) - activity.burnedKcal
-            val newGoal = CalorieGoalCalc.getTotalKcalGoal(user, remainingBurn, kcalAdj)
-            val td = trackedDayRepo.getByDate(today)
-            if (td != null) {
-                trackedDayRepo.upsert(td.copy(
-                    calorieGoal = newGoal,
-                    carbsGoal = MacroCalc.getCarbsGoal(newGoal, carbPct),
-                    fatGoal = MacroCalc.getFatGoal(newGoal, fatPct),
-                    proteinGoal = MacroCalc.getProteinGoal(newGoal, proteinPct)
-                ))
-            }
             activityRepo.delete(activity)
             refresh()
         }
