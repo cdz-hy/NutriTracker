@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.*
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -21,8 +22,11 @@ import androidx.compose.ui.window.Dialog
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.nutritracker.data.entity.*
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.Layout
 import com.example.nutritracker.util.AgeCalc
 import com.example.nutritracker.util.BmiCalc
+import com.example.nutritracker.util.BmiStandard
 import com.example.nutritracker.util.TdeeCalc
 import com.example.nutritracker.ui.theme.*
 import java.time.LocalDate
@@ -48,6 +52,11 @@ fun ProfileScreen(
     var showGoalDialog by remember { mutableStateOf(false) }
     var showWeeklyGoalDialog by remember { mutableStateOf(false) }
     var showCaloriesProfileDialog by remember { mutableStateOf(false) }
+    var bmiStandard by remember {
+        mutableStateOf(
+            if (java.util.Locale.getDefault().language == "zh") BmiStandard.CHINA else BmiStandard.WHO
+        )
+    }
 
     Column(
         modifier = Modifier
@@ -82,7 +91,7 @@ fun ProfileScreen(
 
         // ── BMI Card - 分段指示器 ────────────────────────────────────────
         val bmi = BmiCalc.getBmi(u.weightKg, u.heightCm)
-        val status = BmiCalc.getNutritionalStatus(bmi)
+        val status = BmiCalc.getNutritionalStatus(bmi, bmiStandard)
         val animBmi by animatedFloatAsState(bmi.toFloat(), durationMs = 1000, label = "bmiAnim")
 
         ElevatedCard(
@@ -116,16 +125,54 @@ fun ProfileScreen(
                         style = MaterialTheme.typography.labelLarge,
                         color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
                     )
-                    IconButton(
-                        onClick = onNavigateToSources,
-                        modifier = Modifier.size(28.dp)
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(
-                            imageVector = Icons.Filled.HelpOutline,
-                            contentDescription = "查看 BMI 科学依据",
-                            tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                            modifier = Modifier.size(18.dp)
-                        )
+                        // Toggle pill
+                        Row(
+                            modifier = Modifier
+                                .background(
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.12f),
+                                    shape = MaterialTheme.shapes.extraSmall
+                                )
+                                .padding(2.dp),
+                            horizontalArrangement = Arrangement.spacedBy(2.dp)
+                        ) {
+                            for (std in BmiStandard.entries) {
+                                val active = bmiStandard == std
+                                Box(
+                                    modifier = Modifier
+                                        .clip(MaterialTheme.shapes.extraSmall)
+                                        .background(
+                                            if (active) MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.2f)
+                                            else Color.Transparent
+                                        )
+                                        .clickable { bmiStandard = std }
+                                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = if (std == BmiStandard.CHINA) "中国标准" else "世界标准",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = if (active) FontWeight.Bold else FontWeight.Normal,
+                                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                                    )
+                                }
+                            }
+                        }
+
+                        IconButton(
+                            onClick = onNavigateToSources,
+                            modifier = Modifier.size(28.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.HelpOutline,
+                                contentDescription = "查看 BMI 科学依据",
+                                tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
                     }
                 }
 
@@ -140,7 +187,7 @@ fun ProfileScreen(
                         color = MaterialTheme.colorScheme.onPrimaryContainer
                     )
                     Text(
-                        text = status.label,
+                        text = status.getLabel(bmiStandard),
                         style = MaterialTheme.typography.titleMedium,
                         color = MaterialTheme.colorScheme.onPrimaryContainer,
                         modifier = Modifier.padding(bottom = 4.dp)
@@ -148,7 +195,7 @@ fun ProfileScreen(
                 }
 
                 // 分段 BMI 指示器
-                BmiSegmentedBar(bmi = bmi)
+                BmiSegmentedBar(bmi = bmi, standard = bmiStandard)
             }
         }
 
@@ -199,7 +246,7 @@ fun ProfileScreen(
         // ── 目标设置 Card ────────────────────────────────────────────────
         SectionCard(title = "目标设置") {
             EditableProfileRow(
-                icon = Icons.Filled.DirectionsRun,
+                icon = Icons.AutoMirrored.Filled.DirectionsRun,
                 label = "活动水平",
                 value = when (u.activityLevel) {
                     ActivityLevel.SEDENTARY -> "久坐不动"
@@ -302,7 +349,7 @@ fun ProfileScreen(
                 },
                 leadingContent = {
                     Icon(
-                        Icons.Filled.TrendingDown,
+                        Icons.AutoMirrored.Filled.TrendingDown,
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.size(Dimens.IconSizeMedium)
@@ -385,7 +432,7 @@ fun ProfileScreen(
                 title = "体重",
                 unit = "kg",
                 initialValue = u.weightKg,
-                range = 30.0..300.0,
+                range = 30.0..180.0,
                 step = 0.1,
                 onDismiss = { showWeightDialog = false },
                 onConfirm = { vm.updateWeight(it); showWeightDialog = false }
@@ -397,7 +444,7 @@ fun ProfileScreen(
                 title = "目标体重",
                 unit = "kg",
                 initialValue = u.targetWeightKg ?: u.weightKg,
-                range = 30.0..300.0,
+                range = 30.0..180.0,
                 step = 0.1,
                 onDismiss = { showTargetWeightDialog = false },
                 onConfirm = { vm.updateTargetWeight(it); showTargetWeightDialog = false }
@@ -467,20 +514,56 @@ fun ProfileScreen(
 // ── BMI 分段指示器 ──────────────────────────────────────────────────────────
 
 @Composable
-private fun BmiSegmentedBar(bmi: Double) {
-    val segments = listOf(
-        Triple(Color(0xFF2196F3), 18.5f, "偏瘦"),
-        Triple(Color(0xFF4CAF50), 25f, "正常"),
-        Triple(Color(0xFFFFC107), 30f, "超重"),
-        Triple(Color(0xFFFF9800), 35f, "肥胖I"),
-        Triple(Color(0xFFFF5722), 40f, "肥胖II"),
-        Triple(Color(0xFFF44336), 50f, "肥胖III")
-    )
+private fun BmiSegmentedBar(bmi: Double, standard: BmiStandard) {
+    val segments = if (standard == BmiStandard.CHINA) {
+        listOf(
+            Triple(Color(0xFF2196F3), 18.5f, "偏瘦"),
+            Triple(Color(0xFF4CAF50), 24f, "正常"),
+            Triple(Color(0xFFFFC107), 28f, "超重"),
+            Triple(Color(0xFFFF9800), 32f, "肥胖I"),
+            Triple(Color(0xFFFF5722), 38f, "肥胖II"),
+            Triple(Color(0xFFF44336), 50f, "肥胖III")
+        )
+    } else {
+        listOf(
+            Triple(Color(0xFF2196F3), 18.5f, "偏瘦"),
+            Triple(Color(0xFF4CAF50), 25f, "正常"),
+            Triple(Color(0xFFFFC107), 30f, "超重"),
+            Triple(Color(0xFFFF9800), 35f, "肥胖I"),
+            Triple(Color(0xFFFF5722), 40f, "肥胖II"),
+            Triple(Color(0xFFF44336), 50f, "肥胖III")
+        )
+    }
 
-    val markerPosition = ((bmi.toFloat() - 10f) / 40f).coerceIn(0f, 1f)
+    val boundaries = if (standard == BmiStandard.CHINA) {
+        listOf(10.0, 18.5, 24.0, 28.0, 32.0, 38.0, 50.0)
+    } else {
+        listOf(10.0, 18.5, 25.0, 30.0, 35.0, 40.0, 50.0)
+    }
+
+    val markerPosition = remember(bmi, standard) {
+        val bmiVal = bmi.coerceIn(10.0, 50.0)
+        var pos = 0f
+        for (i in 0 until boundaries.size - 1) {
+            val low = boundaries[i]
+            val high = boundaries[i + 1]
+            if (bmiVal in low..high) {
+                val fraction = (bmiVal - low) / (high - low)
+                pos = (i + fraction).toFloat() / (boundaries.size - 1)
+                break
+            }
+        }
+        pos
+    }
     val animMarker by animatedFloatAsState(markerPosition, durationMs = 1000, label = "bmiMarker")
 
     val onContainer = MaterialTheme.colorScheme.onPrimaryContainer
+
+    val ticks = if (standard == BmiStandard.CHINA) {
+        listOf("10", "18.5", "24", "28", "32", "38", "50")
+    } else {
+        listOf("10", "18.5", "25", "30", "35", "40", "50")
+    }
 
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Canvas(
@@ -504,15 +587,29 @@ private fun BmiSegmentedBar(bmi: Double) {
                 center = Offset(markerX.coerceIn(8.dp.toPx(), size.width - 8.dp.toPx()), size.height / 2)
             )
         }
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Text("10", style = MaterialTheme.typography.labelSmall, color = onContainer.copy(alpha = 0.6f))
-            Text("18.5", style = MaterialTheme.typography.labelSmall, color = onContainer.copy(alpha = 0.6f))
-            Text("25", style = MaterialTheme.typography.labelSmall, color = onContainer.copy(alpha = 0.6f))
-            Text("30", style = MaterialTheme.typography.labelSmall, color = onContainer.copy(alpha = 0.6f))
-            Text("40+", style = MaterialTheme.typography.labelSmall, color = onContainer.copy(alpha = 0.6f))
+        Layout(
+            content = {
+                ticks.forEach { tick ->
+                    Text(
+                        tick,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = onContainer.copy(alpha = 0.6f)
+                    )
+                }
+            },
+            modifier = Modifier.fillMaxWidth()
+        ) { measurables, constraints ->
+            val placeables = measurables.map { it.measure(constraints.copy(minWidth = 0, minHeight = 0)) }
+            val height = placeables.maxOfOrNull { it.height } ?: 0
+            layout(constraints.maxWidth, height) {
+                val stepCount = boundaries.size - 1
+                placeables.forEachIndexed { index, placeable ->
+                    val fraction = index.toFloat() / stepCount
+                    val x = (constraints.maxWidth * fraction) - (placeable.width / 2f)
+                    val coercedX = x.coerceIn(0f, (constraints.maxWidth - placeable.width).toFloat())
+                    placeable.placeRelative(coercedX.roundToInt(), 0)
+                }
+            }
         }
     }
 }

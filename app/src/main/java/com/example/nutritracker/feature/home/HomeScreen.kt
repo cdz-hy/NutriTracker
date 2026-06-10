@@ -156,12 +156,13 @@ fun HomeScreen(
         // 四餐分区 (早餐/午餐/晚餐/零食)
         // ════════════════════════════════════════════════════════════════════
         val mealTypes = listOf(IntakeType.BREAKFAST, IntakeType.LUNCH, IntakeType.DINNER, IntakeType.SNACK)
+        var animIdx = 3
 
-        mealTypes.forEachIndexed { mealIdx, type ->
+        mealTypes.forEach { type ->
             val section = state.mealSections.find { it.type == type }
 
             item(key = "meal_header_$type") {
-                StaggeredFadeIn(index = 3 + mealIdx) {
+                StaggeredFadeIn(index = animIdx++) {
                     MealSectionHeader(
                         type = type,
                         totalKcal = section?.totalKcal ?: 0.0,
@@ -173,20 +174,23 @@ fun HomeScreen(
 
             if (section != null && section.intakes.isNotEmpty()) {
                 items(section.intakes, key = { "intake_${it.id}" }) { intake ->
-                    Box(modifier = Modifier.animateItem()) {
-                        MealIntakeItem(
-                            intake = intake,
-                            meal = section.meals[intake.mealId],
-                            onEdit = { onNavigateToEdit(section.meals[intake.mealId]?.id ?: 0, section.type.ordinal) },
-                            onDelete = { vm.deleteIntake(intake) }
-                        )
+                    val itemIdx = animIdx++
+                    StaggeredFadeIn(index = itemIdx) {
+                        Box(modifier = Modifier.animateItem()) {
+                            MealIntakeItem(
+                                intake = intake,
+                                meal = section.meals[intake.mealId],
+                                onEdit = { onNavigateToEdit(section.meals[intake.mealId]?.id ?: 0, section.type.ordinal) },
+                                onDelete = { vm.deleteIntake(intake) }
+                            )
+                        }
                     }
                 }
             }
         }
         // ════════════════════════════════════════════════════════════════════
         item(key = "activity_header") {
-            StaggeredFadeIn(index = 7) {
+            StaggeredFadeIn(index = animIdx++) {
                 ActivitySectionHeader(
                     totalKcal = state.activities.sumOf { it.burnedKcal },
                     onAddClick = onNavigateToAddActivity
@@ -196,11 +200,14 @@ fun HomeScreen(
 
         if (state.activities.isNotEmpty()) {
             items(state.activities, key = { "activity_${it.id}" }) { activity ->
-                Box(modifier = Modifier.animateItem()) {
-                    ActivityItem(
-                        activity = activity,
-                        onDelete = { vm.deleteActivity(activity) }
-                    )
+                val itemIdx = animIdx++
+                StaggeredFadeIn(index = itemIdx) {
+                    Box(modifier = Modifier.animateItem()) {
+                        ActivityItem(
+                            activity = activity,
+                            onDelete = { vm.deleteActivity(activity) }
+                        )
+                    }
                 }
             }
         }

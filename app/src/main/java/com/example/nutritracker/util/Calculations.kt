@@ -10,23 +10,63 @@ import kotlin.math.pow
 // 来源: WHO Europe - https://www.who.int/europe/news-room/fact-sheets/item/a-healthy-lifestyle---who-recommendations
 // ══════════════════════════════════════════════════════════════════════════════
 
+enum class BmiStandard(val label: String) {
+    WHO("世界标准 (WHO)"),
+    CHINA("中国标准 (WGOC)")
+}
+
 object BmiCalc {
     fun getBmi(weightKg: Double, heightCm: Double): Double =
         weightKg / (heightCm / 100.0).pow(2)
 
-    fun getNutritionalStatus(bmi: Double): NutritionalStatus = when {
-        bmi < 18.5 -> NutritionalStatus.UNDERWEIGHT
-        bmi < 25.0 -> NutritionalStatus.NORMAL
-        bmi < 30.0 -> NutritionalStatus.PRE_OBESITY
-        bmi < 35.0 -> NutritionalStatus.OBESITY_I
-        bmi < 40.0 -> NutritionalStatus.OBESITY_II
-        else        -> NutritionalStatus.OBESITY_III
+    fun getNutritionalStatus(
+        bmi: Double,
+        standard: BmiStandard = if (java.util.Locale.getDefault().language == "zh") BmiStandard.CHINA else BmiStandard.WHO
+    ): NutritionalStatus = when (standard) {
+        BmiStandard.WHO -> when {
+            bmi < 18.5 -> NutritionalStatus.UNDERWEIGHT
+            bmi < 25.0 -> NutritionalStatus.NORMAL
+            bmi < 30.0 -> NutritionalStatus.PRE_OBESITY
+            bmi < 35.0 -> NutritionalStatus.OBESITY_I
+            bmi < 40.0 -> NutritionalStatus.OBESITY_II
+            else        -> NutritionalStatus.OBESITY_III
+        }
+        BmiStandard.CHINA -> when {
+            bmi < 18.5 -> NutritionalStatus.UNDERWEIGHT
+            bmi < 24.0 -> NutritionalStatus.NORMAL
+            bmi < 28.0 -> NutritionalStatus.PRE_OBESITY
+            bmi < 32.0 -> NutritionalStatus.OBESITY_I
+            bmi < 38.0 -> NutritionalStatus.OBESITY_II
+            else        -> NutritionalStatus.OBESITY_III
+        }
     }
 
-    enum class NutritionalStatus(val label: String) {
-        UNDERWEIGHT("体重过低"), NORMAL("正常体重"),
-        PRE_OBESITY("超重前期"), OBESITY_I("肥胖 I 级"),
-        OBESITY_II("肥胖 II 级"), OBESITY_III("肥胖 III 级")
+    enum class NutritionalStatus {
+        UNDERWEIGHT, NORMAL, PRE_OBESITY, OBESITY_I, OBESITY_II, OBESITY_III;
+
+        fun getLabel(
+            standard: BmiStandard = if (java.util.Locale.getDefault().language == "zh") BmiStandard.CHINA else BmiStandard.WHO
+        ): String = when (standard) {
+            BmiStandard.CHINA -> when (this) {
+                UNDERWEIGHT -> "体重过低"
+                NORMAL -> "正常"
+                PRE_OBESITY -> "超重"
+                OBESITY_I -> "肥胖 I 级"
+                OBESITY_II -> "肥胖 II 级"
+                OBESITY_III -> "肥胖 III 级"
+            }
+            BmiStandard.WHO -> when (this) {
+                UNDERWEIGHT -> "体重过低"
+                NORMAL -> "正常体重"
+                PRE_OBESITY -> "超重前期"
+                OBESITY_I -> "肥胖 I 级"
+                OBESITY_II -> "肥胖 II 级"
+                OBESITY_III -> "肥胖 III 级"
+            }
+        }
+
+        val label: String
+            get() = getLabel()
     }
 }
 

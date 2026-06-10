@@ -7,6 +7,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
@@ -24,6 +25,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.compose.ui.graphics.Color
 import com.example.nutritracker.data.entity.*
 import com.example.nutritracker.util.*
 import com.example.nutritracker.ui.theme.*
@@ -354,29 +356,77 @@ private fun BodyPage(vm: OnboardingViewModel) {
         val weight = vm.weightStr.toDoubleOrNull()
         if (height != null && weight != null) {
             val bmi = BmiCalc.getBmi(weight, height)
-            val status = BmiCalc.getNutritionalStatus(bmi)
+            val status = BmiCalc.getNutritionalStatus(bmi, vm.bmiStandard)
             ElevatedCard(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.elevatedCardColors(
                     containerColor = MaterialTheme.colorScheme.surfaceContainerLow
                 )
             ) {
-                Row(
+                Column(
                     modifier = Modifier.padding(16.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Text(
-                        text = "BMI 预览",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Text(
-                        text = "%.1f (%s)".format(bmi, status.label),
-                        style = MaterialTheme.typography.bodyLarge,
-                        fontWeight = FontWeight.Medium,
-                        color = MaterialTheme.colorScheme.primary
-                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "BMI 预览",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Row(
+                            modifier = Modifier
+                                .background(
+                                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                                    shape = MaterialTheme.shapes.extraSmall
+                                )
+                                .padding(2.dp),
+                            horizontalArrangement = Arrangement.spacedBy(2.dp)
+                        ) {
+                            for (std in BmiStandard.entries) {
+                                val active = vm.bmiStandard == std
+                                Box(
+                                    modifier = Modifier
+                                        .clip(MaterialTheme.shapes.extraSmall)
+                                        .background(
+                                            if (active) MaterialTheme.colorScheme.primaryContainer
+                                            else Color.Transparent
+                                        )
+                                        .clickable { vm.bmiStandard = std }
+                                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = if (std == BmiStandard.CHINA) "中国标准" else "世界标准",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = if (active) FontWeight.Bold else FontWeight.Normal,
+                                        color = if (active) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "健康状态",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            text = "%.1f (%s)".format(bmi, status.getLabel(vm.bmiStandard)),
+                            style = MaterialTheme.typography.bodyLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
                 }
             }
         }
@@ -398,7 +448,7 @@ private fun BodyPage(vm: OnboardingViewModel) {
             title = "体重",
             unit = "kg",
             initialValue = vm.weightStr.toDoubleOrNull() ?: 70.0,
-            range = 30.0..300.0,
+            range = 30.0..180.0,
             step = 0.1,
             onDismiss = { showWeightDialog = false },
             onConfirm = { vm.weightStr = "%.1f".format(it); showWeightDialog = false }
@@ -409,7 +459,7 @@ private fun BodyPage(vm: OnboardingViewModel) {
             title = "目标体重",
             unit = "kg",
             initialValue = vm.targetWeightStr.toDoubleOrNull() ?: vm.weightStr.toDoubleOrNull() ?: 65.0,
-            range = 30.0..300.0,
+            range = 30.0..180.0,
             step = 0.1,
             onDismiss = { showTargetWeightDialog = false },
             onConfirm = { vm.targetWeightStr = "%.1f".format(it); showTargetWeightDialog = false }
@@ -572,7 +622,8 @@ private fun OverviewPage(
                     fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.onSurface
                 )
-                OverviewRow("BMI", "%.1f (%s)".format(bmi, status.label))
+                val overviewStatus = BmiCalc.getNutritionalStatus(bmi, vm.bmiStandard)
+                OverviewRow("BMI", "%.1f (%s)".format(bmi, overviewStatus.getLabel(vm.bmiStandard)))
                 OverviewRow("TDEE", "${tdee.roundToInt()} kcal")
                 Text(
                     text = "TDEE = 每日总能量消耗，即维持当前体重所需的卡路里",

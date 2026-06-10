@@ -8,6 +8,7 @@ import com.example.nutritracker.data.repository.SettingsRepository
 import com.example.nutritracker.data.repository.UserRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.launch
+import com.example.nutritracker.util.BmiStandard
 import java.time.LocalDate
 import javax.inject.Inject
 
@@ -26,6 +27,7 @@ class OnboardingViewModel @Inject constructor(
     var activityLevel by mutableStateOf(ActivityLevel.SEDENTARY)
     var weightGoal by mutableStateOf(WeightGoal.MAINTAIN)
     var weeklyGoalStr by mutableStateOf("")
+    var bmiStandard by mutableStateOf(if (java.util.Locale.getDefault().language == "zh") BmiStandard.CHINA else BmiStandard.WHO)
 
     fun canProceed(page: Int): Boolean = getValidationError(page) == null
 

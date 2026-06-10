@@ -210,8 +210,11 @@ fun DiaryScreen(
                     }
                     items(intakesForType, key = { "diary_intake_${it.id}" }) { intake ->
                         val meal = state.meals[intake.mealId]
-                        Box(modifier = Modifier.animateItem()) {
-                            DiaryIntakeCard(intake = intake, meal = meal)
+                        val itemIdx = sectionIdx++
+                        StaggeredFadeIn(index = itemIdx) {
+                            Box(modifier = Modifier.animateItem()) {
+                                DiaryIntakeCard(intake = intake, meal = meal)
+                            }
                         }
                     }
                 }
@@ -227,45 +230,48 @@ fun DiaryScreen(
                     }
                 }
                 items(state.activities, key = { "diary_activity_${it.id}" }) { activity ->
-                    Box(modifier = Modifier.animateItem()) {
-                        Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.surfaceContainerLow
-                            ),
-                            elevation = CardDefaults.cardElevation(defaultElevation = Dimens.CardElevationLow),
-                            shape = MaterialTheme.shapes.medium
-                        ) {
-                            ListItem(
-                                headlineContent = {
-                                    Text(
-                                        text = activity.name,
-                                        style = MaterialTheme.typography.bodyLarge,
-                                        color = MaterialTheme.colorScheme.onSurface
-                                    )
-                                },
-                                supportingContent = {
-                                    Text(
-                                        text = "${activity.durationMinutes.roundToInt()}分钟 · ${activity.burnedKcal.roundToInt()} kcal",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                },
-                                leadingContent = {
-                                    Icon(
-                                        Icons.Filled.LocalFireDepartment,
-                                        contentDescription = null,
-                                        tint = BurnColor,
-                                        modifier = Modifier.size(Dimens.IconSizeMedium)
-                                    )
-                                },
-                                colors = ListItemDefaults.colors(
+                    val itemIdx = sectionIdx++
+                    StaggeredFadeIn(index = itemIdx) {
+                        Box(modifier = Modifier.animateItem()) {
+                            Card(
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = CardDefaults.cardColors(
                                     containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+                                ),
+                                elevation = CardDefaults.cardElevation(defaultElevation = Dimens.CardElevationLow),
+                                shape = MaterialTheme.shapes.medium
+                            ) {
+                                ListItem(
+                                    headlineContent = {
+                                        Text(
+                                            text = activity.name,
+                                            style = MaterialTheme.typography.bodyLarge,
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        )
+                                    },
+                                    supportingContent = {
+                                        Text(
+                                            text = "${activity.durationMinutes.roundToInt()}分钟 · ${activity.burnedKcal.roundToInt()} kcal",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    },
+                                    leadingContent = {
+                                        Icon(
+                                            Icons.Filled.LocalFireDepartment,
+                                            contentDescription = null,
+                                            tint = BurnColor,
+                                            modifier = Modifier.size(Dimens.IconSizeMedium)
+                                        )
+                                    },
+                                    colors = ListItemDefaults.colors(
+                                        containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+                                    )
                                 )
-                            )
+                            }
                         }
                     }
-            }
+                }
         }
     }
 }
