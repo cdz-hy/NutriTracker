@@ -26,7 +26,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.example.nutritracker.data.entity.*
 import com.example.nutritracker.util.*
-import com.example.nutritracker.ui.theme.animatedSpringScale
+import com.example.nutritracker.ui.theme.*
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import kotlin.math.roundToInt
@@ -109,9 +109,16 @@ fun OnboardingScreen(
             AnimatedContent(
                 targetState = page,
                 transitionSpec = {
-                    fadeIn(animationSpec = tween(300)) + slideInHorizontally(
-                        initialOffsetX = { if (targetState > initialState) it else -it }
-                    ) togetherWith fadeOut(animationSpec = tween(300))
+                    val isForward = targetState > initialState
+                    val enter = fadeIn(tween(M3Duration.Medium2, easing = M3Easing.Decelerate)) + slideInHorizontally(
+                        initialOffsetX = { if (isForward) it / 3 else -it / 3 },
+                        animationSpec = tween(M3Duration.Medium2, easing = M3Easing.Decelerate)
+                    )
+                    val exit = fadeOut(tween(M3Duration.Short3, easing = M3Easing.Accelerate)) + slideOutHorizontally(
+                        targetOffsetX = { if (isForward) -it / 3 else it / 3 },
+                        animationSpec = tween(M3Duration.Short3, easing = M3Easing.Accelerate)
+                    )
+                    enter togetherWith exit
                 },
                 label = "page"
             ) { p ->

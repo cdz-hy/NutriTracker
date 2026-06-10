@@ -10,12 +10,26 @@ android {
     namespace = "com.example.nutritracker"
     compileSdk = 35
 
+    // 从 version.properties 读取版本号
+    fun loadVersionProps(): Map<String, String> {
+        val props = mutableMapOf<String, String>()
+        rootProject.file("version.properties").forEachLine { line ->
+            val trimmed = line.trim()
+            if (!trimmed.startsWith("#") && trimmed.contains("=")) {
+                val (key, value) = trimmed.split("=", limit = 2)
+                props[key.trim()] = value.trim()
+            }
+        }
+        return props
+    }
+    val versionProps = loadVersionProps()
+
     defaultConfig {
         applicationId = "com.example.nutritracker"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = (versionProps["VERSION_CODE"] ?: "1").toInt()
+        versionName = versionProps["VERSION_NAME"] ?: "1.0.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 

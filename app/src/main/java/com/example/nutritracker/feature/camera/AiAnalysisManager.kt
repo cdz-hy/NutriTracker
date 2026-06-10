@@ -136,41 +136,41 @@ class AiAnalysisManager @Inject constructor(
         val nutrition = result.nutritionResult
         val thumbnailPath = result.thumbnailPath
 
-        nutrition.foodItems.forEach { item ->
-            val kcalPer100g = if (item.weightG > 0) item.calories * 100.0 / item.weightG else 0.0
-            val carbsPer100g = if (item.weightG > 0) item.carbs * 100.0 / item.weightG else 0.0
-            val fatPer100g = if (item.weightG > 0) item.fat * 100.0 / item.weightG else 0.0
-            val proteinPer100g = if (item.weightG > 0) item.protein * 100.0 / item.weightG else 0.0
-
-            val mealId = mealRepo.upsert(
-                Meal(
-                    name = item.name,
-                    source = MealSource.AI_ANALYSIS,
-                    energyKcal100 = kcalPer100g,
-                    carbohydrates100 = carbsPer100g,
-                    fat100 = fatPer100g,
-                    proteins100 = proteinPer100g,
-                    localImagePath = thumbnailPath
-                )
-            )
-            addIntake(mealId, item.weightG, intakeType)
+        // 使用 AI 返回的自然汇总名称，兜底用 foodItems 拼接
+        val summaryName = nutrition.mealName.ifBlank {
+            if (nutrition.foodItems.isNotEmpty()) {
+                nutrition.foodItems.take(3).joinToString(" + ") { it.name }
+            } else {
+                "AI 识别食物"
+            }
         }
 
-        // 如果没有 food_items 但有总计数据
-        if (nutrition.foodItems.isEmpty() && nutrition.totalCalories > 0) {
-            val mealId = mealRepo.upsert(
-                Meal(
-                    name = "AI 识别食物",
-                    source = MealSource.AI_ANALYSIS,
-                    energyKcal100 = nutrition.totalCalories,
-                    carbohydrates100 = nutrition.totalCarbs,
-                    fat100 = nutrition.totalFat,
-                    proteins100 = nutrition.totalProtein,
-                    localImagePath = thumbnailPath
-                )
+        // 食物项 JSON
+        val foodItemsJson = if (nutrition.foodItems.isNotEmpty()) {
+            com.google.gson.Gson().toJson(nutrition.foodItems)
+        } else null
+
+        // 每100g营养值
+        val totalWeight = nutrition.foodItems.sumOf { it.weightG }.coerceAtLeast(100.0)
+        val kcalPer100g = nutrition.totalCalories * 100.0 / totalWeight
+        val carbsPer100g = nutrition.totalCarbs * 100.0 / totalWeight
+        val fatPer100g = nutrition.totalFat * 100.0 / totalWeight
+        val proteinPer100g = nutrition.totalProtein * 100.0 / totalWeight
+
+        // 创建汇总 Meal
+        val mealId = mealRepo.upsert(
+            Meal(
+                name = summaryName,
+                source = MealSource.AI_ANALYSIS,
+                energyKcal100 = kcalPer100g,
+                carbohydrates100 = carbsPer100g,
+                fat100 = fatPer100g,
+                proteins100 = proteinPer100g,
+                localImagePath = thumbnailPath,
+                foodItemsJson = foodItemsJson
             )
-            addIntake(mealId, 100.0, intakeType)
-        }
+        )
+        addIntake(mealId, totalWeight, intakeType)
     }
 
     private suspend fun addIntake(mealId: Long, amount: Double, type: IntakeType) {

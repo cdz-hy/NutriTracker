@@ -4,7 +4,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
-import com.example.nutritracker.ui.theme.StaggeredAnimatedItem
+import com.example.nutritracker.ui.theme.*
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -129,24 +129,28 @@ fun AddActivityScreen(
             Spacer(modifier = Modifier.height(12.dp))
 
             // Selected activity detail card
-            if (selectedActivity != null) {
-                ActivityDetailCard(
-                    activity = selectedActivity!!,
-                    durationStr = durationStr,
-                    onDurationChange = { durationStr = it },
-                    user = user,
-                    onCancel = { selectedActivity = null },
-                    onRecord = { kcal ->
-                        vm.addActivity(
-                            selectedActivity!!.name,
-                            selectedActivity!!.mets,
-                            durationStr.toDoubleOrNull() ?: 0.0,
-                            kcal
+            AnimatedExpand(visible = selectedActivity != null) {
+                selectedActivity?.let { activity ->
+                    Column {
+                        ActivityDetailCard(
+                            activity = activity,
+                            durationStr = durationStr,
+                            onDurationChange = { durationStr = it },
+                            user = user,
+                            onCancel = { selectedActivity = null },
+                            onRecord = { kcal ->
+                                vm.addActivity(
+                                    activity.name,
+                                    activity.mets,
+                                    durationStr.toDoubleOrNull() ?: 0.0,
+                                    kcal
+                                )
+                                onBack()
+                            }
                         )
-                        onBack()
+                        Spacer(modifier = Modifier.height(12.dp))
                     }
-                )
-                Spacer(modifier = Modifier.height(12.dp))
+                }
             }
 
             // Activity list grouped by category
@@ -164,13 +168,15 @@ fun AddActivityScreen(
                             modifier = Modifier.padding(vertical = 8.dp)
                         )
                     }
-                    itemsIndexed(categoryActivities) { index, activity ->
-                        StaggeredAnimatedItem(index = index) {
-                            ActivityListItem(
-                                activity = activity,
-                                isSelected = selectedActivity?.code == activity.code,
-                                onClick = { selectedActivity = activity }
-                            )
+                    itemsIndexed(categoryActivities, key = { _, act -> act.code }) { index, activity ->
+                        Box(modifier = Modifier.animateItem()) {
+                            StaggeredFadeIn(index = index) {
+                                ActivityListItem(
+                                    activity = activity,
+                                    isSelected = selectedActivity?.code == activity.code,
+                                    onClick = { selectedActivity = activity }
+                                )
+                            }
                         }
                     }
                 }

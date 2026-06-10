@@ -35,7 +35,7 @@ import com.example.nutritracker.feature.camera.CameraCaptureScreen
 import com.example.nutritracker.feature.activity.AddActivityScreen
 import com.example.nutritracker.feature.sources.SourcesScreen
 import com.example.nutritracker.navigation.Screen
-import com.example.nutritracker.ui.theme.NutriTrackerTheme
+import com.example.nutritracker.ui.theme.*
 import dagger.hilt.android.AndroidEntryPoint
 
 @AndroidEntryPoint
@@ -69,10 +69,10 @@ fun NutriTrackerNav() {
     NavHost(
         navController = rootNav,
         startDestination = startDest,
-        enterTransition = { fadeIn(tween(300)) + slideInHorizontally(animationSpec = tween(300), initialOffsetX = { it / 4 }) },
-        exitTransition = { fadeOut(tween(300)) + slideOutHorizontally(animationSpec = tween(300), targetOffsetX = { -it / 4 }) },
-        popEnterTransition = { fadeIn(tween(300)) + slideInHorizontally(animationSpec = tween(300), initialOffsetX = { -it / 4 }) },
-        popExitTransition = { fadeOut(tween(300)) + slideOutHorizontally(animationSpec = tween(300), targetOffsetX = { it / 4 }) }
+        enterTransition = M3NavEnterTransition,
+        exitTransition = M3NavExitTransition,
+        popEnterTransition = M3NavPopEnterTransition,
+        popExitTransition = M3NavPopExitTransition
     ) {
         composable(Screen.Onboarding.route) {
             OnboardingScreen(
@@ -204,8 +204,8 @@ fun MainScaffold(rootNav: androidx.navigation.NavHostController) {
             navController = tabNav,
             startDestination = Screen.Home.route,
             modifier = Modifier.padding(padding),
-            enterTransition = { fadeIn(animationSpec = tween(220)) },
-            exitTransition = { fadeOut(animationSpec = tween(220)) }
+            enterTransition = { fadeIn(animationSpec = tween(M3Duration.Medium1, easing = M3Easing.Standard)) },
+            exitTransition = { fadeOut(animationSpec = tween(M3Duration.Short3, easing = M3Easing.Standard)) }
         ) {
             composable(Screen.Home.route) {
                 HomeScreen(
@@ -220,6 +220,9 @@ fun MainScaffold(rootNav: androidx.navigation.NavHostController) {
                     },
                     onNavigateToCamera = { intakeTypeId ->
                         rootNav.navigate(Screen.CameraCapture.createRoute(intakeTypeId))
+                    },
+                    onNavigateToEdit = { mealId, typeId ->
+                        rootNav.navigate(Screen.MealEdit.createRoute(mealId, typeId))
                     },
                     rootNavController = rootNav
                 )

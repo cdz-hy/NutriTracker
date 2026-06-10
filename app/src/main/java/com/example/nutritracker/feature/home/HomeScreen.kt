@@ -1,6 +1,6 @@
 package com.example.nutritracker.feature.home
 
-import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.*
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -34,6 +34,7 @@ fun HomeScreen(
     onNavigateToAddActivity: () -> Unit,
     onNavigateToSources: () -> Unit,
     onNavigateToCamera: (Int) -> Unit,
+    onNavigateToEdit: (Long, Int) -> Unit,
     rootNavController: NavController,
     vm: HomeViewModel = hiltViewModel()
 ) {
@@ -107,7 +108,7 @@ fun HomeScreen(
         // 卡路里总览卡片
         // ════════════════════════════════════════════════════════════════════
         item(key = "calorie_overview") {
-            StaggeredAnimatedItem(index = 0) {
+            StaggeredFadeIn(index = 0) {
                 CalorieOverviewCard(
                     goal = state.calorieGoal,
                     supplied = state.caloriesSupplied,
@@ -124,7 +125,7 @@ fun HomeScreen(
         // 宏量营养素进度
         // ════════════════════════════════════════════════════════════════════
         item(key = "macro_progress") {
-            StaggeredAnimatedItem(index = 1) {
+            StaggeredFadeIn(index = 1) {
                 MacroProgressRow(
                     carbsCurrent = state.carbsTracked,
                     carbsGoal = state.carbsGoal,
@@ -140,7 +141,7 @@ fun HomeScreen(
         // 饮水记录
         // ════════════════════════════════════════════════════════════════════
         item(key = "water") {
-            StaggeredAnimatedItem(index = 2) {
+            StaggeredFadeIn(index = 2) {
                 WaterCard(
                     currentMl = state.waterMl,
                     goalMl = state.waterGoalMl,
@@ -159,7 +160,7 @@ fun HomeScreen(
             val section = state.mealSections.find { it.type == type }
 
             item(key = "meal_header_$type") {
-                StaggeredAnimatedItem(index = 3 + mealIdx) {
+                StaggeredFadeIn(index = 3 + mealIdx) {
                     MealSectionHeader(
                         type = type,
                         totalKcal = section?.totalKcal ?: 0.0,
@@ -171,20 +172,20 @@ fun HomeScreen(
 
             if (section != null && section.intakes.isNotEmpty()) {
                 items(section.intakes, key = { "intake_${it.id}" }) { intake ->
-                    MealIntakeItem(
-                        intake = intake,
-                        meal = section.meals[intake.mealId],
-                        onDelete = { vm.deleteIntake(intake) }
-                    )
+                    Box(modifier = Modifier.animateItem()) {
+                        MealIntakeItem(
+                            intake = intake,
+                            meal = section.meals[intake.mealId],
+                            onEdit = { onNavigateToEdit(section.meals[intake.mealId]?.id ?: 0, section.type.ordinal) },
+                            onDelete = { vm.deleteIntake(intake) }
+                        )
+                    }
                 }
             }
         }
-
-        // ════════════════════════════════════════════════════════════════════
-        // 体育活动分区
         // ════════════════════════════════════════════════════════════════════
         item(key = "activity_header") {
-            StaggeredAnimatedItem(index = 7) {
+            StaggeredFadeIn(index = 7) {
                 ActivitySectionHeader(
                     totalKcal = state.activities.sumOf { it.burnedKcal },
                     onAddClick = onNavigateToAddActivity
@@ -194,10 +195,12 @@ fun HomeScreen(
 
         if (state.activities.isNotEmpty()) {
             items(state.activities, key = { "activity_${it.id}" }) { activity ->
-                ActivityItem(
-                    activity = activity,
-                    onDelete = { vm.deleteActivity(activity) }
-                )
+                Box(modifier = Modifier.animateItem()) {
+                    ActivityItem(
+                        activity = activity,
+                        onDelete = { vm.deleteActivity(activity) }
+                    )
+                }
             }
         }
             }
@@ -391,6 +394,7 @@ private fun ActivitySectionHeader(
 private fun MealIntakeItem(
     intake: com.example.nutritracker.data.entity.Intake,
     meal: com.example.nutritracker.data.entity.Meal?,
+    onEdit: (() -> Unit)? = null,
     onDelete: () -> Unit
 ) {
     var showDeleteConfirm by remember { mutableStateOf(false) }
@@ -449,6 +453,19 @@ private fun MealIntakeItem(
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
+            onEdit?.let {
+                IconButton(
+                    onClick = it,
+                    modifier = Modifier.size(32.dp)
+                ) {
+                    Icon(
+                        Icons.Filled.Edit,
+                        contentDescription = "编辑",
+                        modifier = Modifier.size(14.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
             IconButton(
                 onClick = { showDeleteConfirm = true },
                 modifier = Modifier.size(32.dp)

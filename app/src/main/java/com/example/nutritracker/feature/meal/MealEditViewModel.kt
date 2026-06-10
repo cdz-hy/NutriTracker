@@ -49,12 +49,18 @@ class MealEditViewModel @Inject constructor(
     var isSaveCompleted by mutableStateOf(false)
         private set
 
+    // 保存原始图片路径和食物项，编辑后保留
+    private var originalImagePath: String? = null
+    private var originalFoodItemsJson: String? = null
+
     init {
         if (isEditing) {
             viewModelScope.launch {
                 val meal = mealRepo.getById(mealId)
                 val intake = intakeRepo.getByMealId(mealId)
                 if (meal != null) {
+                    originalImagePath = meal.localImagePath
+                    originalFoodItemsJson = meal.foodItemsJson
                     state = MealEditState(
                         name = meal.name,
                         amountStr = intake?.amount?.toInt()?.toString() ?: "100",
@@ -99,7 +105,9 @@ class MealEditViewModel @Inject constructor(
             sugars100 = state.sugarsStr.toDoubleOrNull(),
             saturatedFat100 = state.satFatStr.toDoubleOrNull(),
             fiber100 = state.fiberStr.toDoubleOrNull(),
-            sodium100 = state.sodiumStr.toDoubleOrNull()
+            sodium100 = state.sodiumStr.toDoubleOrNull(),
+            localImagePath = originalImagePath,
+            foodItemsJson = originalFoodItemsJson
         )
     }
 

@@ -1,5 +1,6 @@
 package com.example.nutritracker.feature.meal
 
+import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.background
@@ -32,6 +33,9 @@ import com.example.nutritracker.data.entity.Meal
 import com.example.nutritracker.feature.camera.AnalysisResult
 import com.example.nutritracker.feature.home.mealTypeIcon
 import com.example.nutritracker.feature.home.mealTypeLabel
+import com.example.nutritracker.feature.camera.NutritionResult
+import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
 import java.io.File
 import kotlin.math.roundToInt
 
@@ -246,12 +250,14 @@ fun AddMealScreen(
                     ) {
                         items(todayIntakes, key = { it.id }) { intake ->
                             val meal = mealsMap[intake.mealId]
-                            MealIntakeCard(
-                                intake = intake,
-                                meal = meal,
-                                onEdit = { onNavigateToEdit(meal?.id ?: 0, intakeTypeId) },
-                                onDelete = { vm.deleteIntake(intake) }
-                            )
+                            Box(modifier = Modifier.animateItem()) {
+                                MealIntakeCard(
+                                    intake = intake,
+                                    meal = meal,
+                                    onEdit = { onNavigateToEdit(meal?.id ?: 0, intakeTypeId) },
+                                    onDelete = { vm.deleteIntake(intake) }
+                                )
+                            }
                         }
                         item { Spacer(Modifier.height(16.dp)) }
                     }
@@ -314,86 +320,114 @@ private fun MealIntakeCard(
     onDelete: () -> Unit
 ) {
     var showDeleteConfirm by remember { mutableStateOf(false) }
+    var expanded by remember { mutableStateOf(false) }
+
+    // 解析食物项列表
+    val foodItems = remember(meal?.foodItemsJson) {
+        meal?.foodItemsJson?.let { json ->
+            try {
+                val type = object : TypeToken<List<NutritionResult.FoodItem>>() {}.type
+                Gson().fromJson<List<NutritionResult.FoodItem>>(json, type)
+            } catch (_: Exception) { null }
+        }
+    }
 
     ElevatedCard(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .animateContentSize(
+                animationSpec = spring(
+                    dampingRatio = Spring.DampingRatioLowBouncy,
+                    stiffness = Spring.StiffnessMediumLow
+                )
+            ),
         colors = CardDefaults.elevatedCardColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainerLow
         ),
         elevation = CardDefaults.elevatedCardElevation(defaultElevation = 0.5.dp)
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            // 缩略图
-            val thumbnailPath = meal?.localImagePath
-            if (thumbnailPath != null && File(thumbnailPath).exists()) {
-                AsyncImage(
-                    model = ImageRequest.Builder(LocalContext.current)
-                        .data(File(thumbnailPath))
-                        .crossfade(true)
-                        .build(),
-                    contentDescription = null,
-                    modifier = Modifier
-                        .size(56.dp)
-                        .clip(MaterialTheme.shapes.medium),
-                    contentScale = ContentScale.Crop
-                )
-            } else {
-                Box(
-                    modifier = Modifier
-                        .size(56.dp)
-                        .clip(MaterialTheme.shapes.medium),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        Icons.Filled.Restaurant,
+        Column(modifier = Modifier.clickable { expanded = !expanded }) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                // 缩略图
+                val thumbnailPath = meal?.localImagePath
+                if (thumbnailPath != null && File(thumbnailPath).exists()) {
+                    AsyncImage(
+                        model = ImageRequest.Builder(LocalContext.current)
+                            .data(File(thumbnailPath))
+                            .crossfade(true)
+                            .build(),
                         contentDescription = null,
-                        modifier = Modifier.size(28.dp),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        modifier = Modifier
+                            .size(56.dp)
+                            .clip(MaterialTheme.shapes.medium),
+                        contentScale = ContentScale.Crop
                     )
+                } else {
+                    Box(
+                        modifier = Modifier
+                            .size(56.dp)
+                            .clip(MaterialTheme.shapes.medium),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            Icons.Filled.Restaurant,
+                            contentDescription = null,
+                            modifier = Modifier.size(28.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
-            }
 
-            // 食物信息
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = meal?.name ?: "未知食物",
-                    style = MaterialTheme.typography.bodyLarge,
-                    fontWeight = FontWeight.Medium,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                Text(
-                    text = "${intake.amount.roundToInt()}g",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                // 显示宏量营养素
-                if (meal != null) {
-                    val factor = intake.amount / 100.0
+                // 食物信息
+                Column(modifier = Modifier.weight(1f)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = meal?.name ?: "未知食物",
+                            style = MaterialTheme.typography.bodyLarge,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.weight(1f, fill = false)
+                        )
+                        if (foodItems != null) {
+                            Icon(
+                                if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
+                                contentDescription = "展开",
+                                modifier = Modifier.size(18.dp),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
                     Text(
-                        text = "碳水 ${(meal.carbohydrates100 * factor).roundToInt()}g · 脂肪 ${(meal.fat100 * factor).roundToInt()}g · 蛋白质 ${(meal.proteins100 * factor).roundToInt()}g",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                        text = "${intake.amount.roundToInt()}g",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                    if (meal != null && !expanded) {
+                        val factor = intake.amount / 100.0
+                        Text(
+                            text = "碳水 ${(meal.carbohydrates100 * factor).roundToInt()}g · 脂肪 ${(meal.fat100 * factor).roundToInt()}g · 蛋白质 ${(meal.proteins100 * factor).roundToInt()}g",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                        )
+                    }
                 }
-            }
 
-            // 卡路里
-            val kcal = (meal?.energyKcal100 ?: 0.0) * intake.amount / 100.0
-            Text(
-                text = "${kcal.roundToInt()} kcal",
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.Medium,
-                color = MaterialTheme.colorScheme.primary
-            )
+                // 卡路里
+                val kcal = (meal?.energyKcal100 ?: 0.0) * intake.amount / 100.0
+                Text(
+                    text = "${kcal.roundToInt()} kcal",
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.primary
+                )
 
-            // 操作按钮
-            Column {
+                // 编辑和删除按钮
                 IconButton(
                     onClick = onEdit,
                     modifier = Modifier.size(32.dp)
@@ -412,9 +446,76 @@ private fun MealIntakeCard(
                     Icon(
                         Icons.Filled.Delete,
                         contentDescription = "删除",
-                        modifier = Modifier.size(16.dp),
+                        modifier = Modifier.size(18.dp),
                         tint = MaterialTheme.colorScheme.error
                     )
+                }
+            }
+
+            // 展开的子食物项列表
+            if (expanded && foodItems != null) {
+                HorizontalDivider(
+                    color = MaterialTheme.colorScheme.outlineVariant,
+                    modifier = Modifier.padding(horizontal = 16.dp)
+                )
+                Column(modifier = Modifier.padding(12.dp)) {
+                    foodItems.forEach { item ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp, horizontal = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Icon(
+                                Icons.Filled.Fastfood,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp),
+                                tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.7f)
+                            )
+                            Text(
+                                text = item.name,
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.Medium,
+                                modifier = Modifier.weight(1f),
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(
+                                text = "${item.weightG.roundToInt()}g",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Text(
+                                text = "${item.calories.roundToInt()} kcal",
+                                style = MaterialTheme.typography.bodySmall,
+                                fontWeight = FontWeight.Medium,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                        // 子项宏量
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(start = 32.dp, end = 8.dp, bottom = 4.dp),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Text(
+                                text = "碳水 ${item.carbs.roundToInt()}g",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                            )
+                            Text(
+                                text = "蛋白 ${item.protein.roundToInt()}g",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                            )
+                            Text(
+                                text = "脂肪 ${item.fat.roundToInt()}g",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                            )
+                        }
+                    }
                 }
             }
         }

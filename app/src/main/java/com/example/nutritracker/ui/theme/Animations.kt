@@ -2,157 +2,315 @@ package com.example.nutritracker.ui.theme
 
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
-import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import kotlinx.coroutines.delay
-import kotlin.math.roundToInt
 
 // ══════════════════════════════════════════════════════════════════════════════
-// 可复用动画工具
+// MD3 动画规范
+// 参考: Material Design 3 - Motion Guidelines
+// https://m3.material.io/styles/motion/easing-and-duration
 // ══════════════════════════════════════════════════════════════════════════════
 
-/**
- * 数字递增动画 - 从 0 动画到 targetValue
- * 适用于卡路里、BMI、体重等数值显示
- */
-@Composable
-fun animatedIntAsState(
-    targetValue: Int,
-    durationMs: Int = 800,
-    label: String = "animatedInt"
-): State<Int> {
-    return animateIntAsState(
-        targetValue = targetValue,
-        animationSpec = tween(
-            durationMillis = durationMs,
-            easing = FastOutSlowInEasing
-        ),
-        label = label
+/** MD3 标准过渡时长 (ms) */
+object M3Duration {
+    const val Short1 = 50    // 微交互: 涟漪、开关
+    const val Short2 = 100   // 小型: icon toggle
+    const val Short3 = 150   // 短过渡: chip 选择
+    const val Medium1 = 250  // 中等: 卡片展开
+    const val Medium2 = 300  // 页面转场
+    const val Long1 = 400    // 大型: 全屏过渡
+    const val Long2 = 500    // 长效果: 启动动画
+}
+
+/** MD3 标准缓动曲线 */
+object M3Easing {
+    val Emphasized = CubicBezierEasing(0.2f, 0.0f, 0.0f, 1.0f)           // 强调（全能）
+    val Standard = CubicBezierEasing(0.2f, 0.0f, 0.0f, 1.0f)             // 标准缓动
+    val Decelerate = CubicBezierEasing(0.05f, 0.7f, 0.1f, 1.0f)          // 强调减速（入场）
+    val Accelerate = CubicBezierEasing(0.3f, 0.0f, 0.8f, 0.15f)          // 强调加速（出场）
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// 导航全局转场动效规格 (M3 共享轴)
+// ══════════════════════════════════════════════════════════════════════════════
+
+val M3NavEnterTransition: AnimatedContentTransitionScope<androidx.navigation.NavBackStackEntry>.() -> EnterTransition = {
+    fadeIn(animationSpec = tween(M3Duration.Medium2, easing = M3Easing.Decelerate)) +
+    slideInHorizontally(
+        animationSpec = tween(M3Duration.Medium2, easing = M3Easing.Decelerate),
+        initialOffsetX = { it / 4 }
     )
 }
 
-/**
- * 浮点数递增动画
- */
-@Composable
-fun animatedFloatAsState(
-    targetValue: Float,
-    durationMs: Int = 800,
-    label: String = "animatedFloat"
-): State<Float> {
-    return animateFloatAsState(
-        targetValue = targetValue,
-        animationSpec = tween(
-            durationMillis = durationMs,
-            easing = FastOutSlowInEasing
-        ),
-        label = label
+val M3NavExitTransition: AnimatedContentTransitionScope<androidx.navigation.NavBackStackEntry>.() -> ExitTransition = {
+    fadeOut(animationSpec = tween(M3Duration.Medium2, easing = M3Easing.Accelerate)) +
+    slideOutHorizontally(
+        animationSpec = tween(M3Duration.Medium2, easing = M3Easing.Accelerate),
+        targetOffsetX = { -it / 4 }
+    ) +
+    scaleOut(
+        animationSpec = tween(M3Duration.Medium2, easing = M3Easing.Accelerate),
+        targetScale = 0.9f
     )
 }
 
+val M3NavPopEnterTransition: AnimatedContentTransitionScope<androidx.navigation.NavBackStackEntry>.() -> EnterTransition = {
+    fadeIn(animationSpec = tween(M3Duration.Medium2, easing = M3Easing.Decelerate)) +
+    slideInHorizontally(
+        animationSpec = tween(M3Duration.Medium2, easing = M3Easing.Decelerate),
+        initialOffsetX = { -it / 4 }
+    ) +
+    scaleIn(
+        animationSpec = tween(M3Duration.Medium2, easing = M3Easing.Decelerate),
+        initialScale = 0.9f
+    )
+}
+
+val M3NavPopExitTransition: AnimatedContentTransitionScope<androidx.navigation.NavBackStackEntry>.() -> ExitTransition = {
+    fadeOut(animationSpec = tween(M3Duration.Medium2, easing = M3Easing.Accelerate)) +
+    slideOutHorizontally(
+        animationSpec = tween(M3Duration.Medium2, easing = M3Easing.Accelerate),
+        targetOffsetX = { it / 4 }
+    )
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// 通用动画规格
+// ══════════════════════════════════════════════════════════════════════════════
+
 /**
- * 列表项交错入场动画容器
- * @param index 当前列表项索引
- * @param baseDelayMs 每项之间的延迟
+ * 列表交错入场动画
+ * 每个子项延迟 baseDelayMs * index，最多受 cap 限制
  */
 @Composable
-fun StaggeredAnimatedItem(
+fun StaggeredFadeIn(
     index: Int,
-    baseDelayMs: Long = 50,
+    baseDelayMs: Int = 60,
+    maxDelayMs: Int = 500,
+    offsetY: Int = 40,
     content: @Composable () -> Unit
 ) {
     var visible by remember { mutableStateOf(false) }
-    LaunchedEffect(Unit) {
-        val delayTime = if (index < 6) baseDelayMs * index else 0L
-        if (delayTime > 0) {
-            delay(delayTime)
-        }
+    LaunchedEffect(index) {
+        delay((index.toLong() * baseDelayMs).coerceAtMost(maxDelayMs.toLong()))
         visible = true
     }
     AnimatedVisibility(
         visible = visible,
-        enter = fadeIn(
-            animationSpec = tween(300, easing = FastOutSlowInEasing)
-        ) + slideInVertically(
-            initialOffsetY = { 30 },
-            animationSpec = tween(300, easing = FastOutSlowInEasing)
-        )
+        enter = fadeIn(animationSpec = tween(M3Duration.Medium1, easing = M3Easing.Emphasized))
+            .plus(slideInVertically(
+                animationSpec = tween(M3Duration.Medium1, easing = M3Easing.Emphasized),
+                initialOffsetY = { offsetY }
+            ))
     ) {
         content()
     }
 }
 
 /**
- * 淡入 + 上滑进入规范 - 用于 AnimatedVisibility
+ * 弹性进入动画 - 用于 FAB、重要按钮
  */
-fun fadeSlideIn(
-    durationMs: Int = 300,
-    offsetY: Int = 40
-): EnterTransition = fadeIn(
-    animationSpec = tween(durationMs, easing = FastOutSlowInEasing)
-) + slideInVertically(
-    initialOffsetY = { offsetY },
-    animationSpec = tween(durationMs, easing = FastOutSlowInEasing)
-)
+@Composable
+fun BounceIn(
+    visible: Boolean,
+    content: @Composable () -> Unit
+) {
+    AnimatedVisibility(
+        visible = visible,
+        enter = scaleIn(
+            initialScale = 0.6f,
+            animationSpec = spring(
+                dampingRatio = Spring.DampingRatioMediumBouncy,
+                stiffness = Spring.StiffnessLow
+            )
+        ).plus(fadeIn(animationSpec = tween(M3Duration.Medium1))),
+        exit = scaleOut(
+            targetScale = 0.6f,
+            animationSpec = tween(M3Duration.Short3, easing = M3Easing.Accelerate)
+        ).plus(fadeOut(animationSpec = tween(M3Duration.Short3)))
+    ) {
+        content()
+    }
+}
 
 /**
- * 淡出 + 下滑退出规范
+ * 页面转场 - 前进时从右滑入，后退时从左滑入
  */
-fun fadeSlideOut(
-    durationMs: Int = 200,
-    offsetY: Int = 40
-): ExitTransition = fadeOut(
-    animationSpec = tween(durationMs, easing = FastOutSlowInEasing)
-) + slideOutVertically(
-    targetOffsetY = { -offsetY },
-    animationSpec = tween(durationMs, easing = FastOutSlowInEasing)
-)
-
-/**
- * 缩放进入动画规范
- */
-fun scaleEnter(
-    durationMs: Int = 300,
-    initialScale: Float = 0.92f
-): EnterTransition = fadeIn(
-    animationSpec = tween(durationMs)
-) + scaleIn(
-    initialScale = initialScale,
-    animationSpec = tween(durationMs, easing = FastOutSlowInEasing)
-)
-
-/**
- * 页面间共享轴变换 - 供 AnimatedContent 使用
- * 前进: 从右滑入 + 旧页左滑出
- * 后退: 从左滑入 + 旧页右滑出
- */
-fun sharedAxisTransition(isForward: Boolean): ContentTransform {
-    val enter = fadeIn(tween(300)) + slideInHorizontally(
-        initialOffsetX = { if (isForward) it / 4 else -it / 4 },
-        animationSpec = tween(300, easing = FastOutSlowInEasing)
-    )
-    val exit = fadeOut(tween(200)) + slideOutHorizontally(
-        targetOffsetX = { if (isForward) -it / 4 else it / 4 },
-        animationSpec = tween(200, easing = FastOutSlowInEasing)
-    )
+fun M3PageTransition(forward: Boolean): ContentTransform {
+    val enterX: (Int) -> Int = { if (forward) it / 5 else -it / 5 }
+    val exitX: (Int) -> Int = { if (forward) -it / 5 else it / 5 }
+    val enter = fadeIn(animationSpec = tween(M3Duration.Medium2, easing = M3Easing.Emphasized))
+        .plus(slideInHorizontally(
+            animationSpec = tween(M3Duration.Medium2, easing = M3Easing.Emphasized),
+            initialOffsetX = enterX
+        ))
+    val exit = fadeOut(animationSpec = tween(M3Duration.Short3, easing = M3Easing.Accelerate))
+        .plus(slideOutHorizontally(
+            animationSpec = tween(M3Duration.Short3, easing = M3Easing.Accelerate),
+            targetOffsetX = exitX
+        ))
     return enter togetherWith exit
 }
 
 /**
- * 弹性缩放点击效果 - 用于 Selection Cards
+ * 缩放弹出/收起动画 - 用于对话框、底部弹窗
+ */
+fun M3ScaleIn() = scaleIn(
+    initialScale = 0.92f,
+    animationSpec = tween(M3Duration.Medium1, easing = M3Easing.Emphasized)
+).plus(fadeIn(animationSpec = tween(M3Duration.Medium1)))
+
+fun M3ScaleOut() = scaleOut(
+    targetScale = 0.92f,
+    animationSpec = tween(M3Duration.Short3, easing = M3Easing.Accelerate)
+).plus(fadeOut(animationSpec = tween(M3Duration.Short3)))
+
+/**
+ * 简单淡入 - 无位移
+ */
+fun M3FadeIn() = fadeIn(animationSpec = tween(M3Duration.Medium1, easing = M3Easing.Emphasized))
+fun M3FadeOut() = fadeOut(animationSpec = tween(M3Duration.Short3, easing = M3Easing.Accelerate))
+
+// ══════════════════════════════════════════════════════════════════════════════
+// 数值动画
+// ══════════════════════════════════════════════════════════════════════════════
+
+@Composable
+fun AnimatedCounter(
+    target: Int,
+    durationMs: Int = M3Duration.Medium1
+): State<Int> = animateIntAsState(
+    targetValue = target,
+    animationSpec = tween(durationMs, easing = M3Easing.Emphasized)
+)
+
+/**
+ * 卡片按压缩放效果 - 0.97f 按压态, 1f 正常
+ */
+@Composable
+fun PressScale(
+    pressed: Boolean,
+    pressScale: Float = 0.97f
+): State<Float> = animateFloatAsState(
+    targetValue = if (pressed) pressScale else 1f,
+    animationSpec = spring(
+        dampingRatio = Spring.DampingRatioMediumBouncy,
+        stiffness = Spring.StiffnessMedium
+    )
+)
+
+/**
+ * 数字递增动画 - 兼容旧调用
+ */
+@Composable
+fun animatedIntAsState(
+    targetValue: Int,
+    durationMs: Int = 800,
+    label: String = "animatedInt"
+): State<Int> = animateIntAsState(
+    targetValue = targetValue,
+    animationSpec = tween(durationMs, easing = FastOutSlowInEasing),
+    label = label
+)
+
+/**
+ * 淡入 + 上滑动画规范 - 兼容旧调用
+ */
+fun fadeSlideIn(
+    durationMs: Int = 300,
+    offsetY: Int = 40
+): EnterTransition = fadeIn(animationSpec = tween(durationMs, easing = FastOutSlowInEasing))
+    .plus(slideInVertically(
+        animationSpec = tween(durationMs, easing = FastOutSlowInEasing),
+        initialOffsetY = { offsetY }
+    ))
+
+fun fadeSlideOut(
+    durationMs: Int = 200,
+    offsetY: Int = 40
+): ExitTransition = fadeOut(animationSpec = tween(durationMs, easing = FastOutSlowInEasing))
+    .plus(slideOutVertically(
+        animationSpec = tween(durationMs, easing = FastOutSlowInEasing),
+        targetOffsetY = { -offsetY }
+    ))
+
+/**
+ * 弹性缩放效果 - 用于选择卡片 (保留兼容旧调用)
  */
 @Composable
 fun animatedSpringScale(
     selected: Boolean,
     selectedScale: Float = 1.02f
-): State<Float> {
-    return animateFloatAsState(
-        targetValue = if (selected) selectedScale else 1f,
-        animationSpec = spring(
-            dampingRatio = Spring.DampingRatioMediumBouncy,
-            stiffness = Spring.StiffnessLow
-        ),
-        label = "cardScale"
-    )
+): State<Float> = animateFloatAsState(
+    targetValue = if (selected) selectedScale else 1f,
+    animationSpec = spring(
+        dampingRatio = Spring.DampingRatioMediumBouncy,
+        stiffness = Spring.StiffnessLow
+    ),
+    label = "cardScale"
+)
+
+/**
+ * 浮点数动画 (保留兼容旧调用)
+ */
+@Composable
+fun animatedFloatAsState(
+    targetValue: Float,
+    durationMs: Int = 800,
+    label: String = "animatedFloat"
+): State<Float> = animateFloatAsState(
+    targetValue = targetValue,
+    animationSpec = tween(durationMs, easing = FastOutSlowInEasing),
+    label = label
+)
+
+// ══════════════════════════════════════════════════════════════════════════════
+// 快捷 AnimatedVisibility 包装器 - 减少样板代码
+// ══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * 列表项入场: 淡入 + 上滑 40dp
+ */
+@Composable
+fun AnimatedItemEnter(
+    visible: Boolean = true,
+    content: @Composable () -> Unit
+) {
+    AnimatedVisibility(
+        visible = visible,
+        enter = fadeIn(animationSpec = tween(M3Duration.Medium1, easing = M3Easing.Emphasized))
+            .plus(slideInVertically(
+                animationSpec = tween(M3Duration.Medium1, easing = M3Easing.Emphasized),
+                initialOffsetY = { 40 }
+            )),
+        exit = fadeOut(animationSpec = tween(M3Duration.Short3, easing = M3Easing.Accelerate))
+            .plus(slideOutVertically(
+                animationSpec = tween(M3Duration.Short3, easing = M3Easing.Accelerate),
+                targetOffsetY = { -40 }
+            ))
+    ) {
+        content()
+    }
+}
+
+/**
+ * 展开收起: 垂直方向 + 淡入淡出
+ */
+@Composable
+fun AnimatedExpand(
+    visible: Boolean,
+    content: @Composable () -> Unit
+) {
+    AnimatedVisibility(
+        visible = visible,
+        enter = expandVertically(
+            animationSpec = tween(M3Duration.Medium1, easing = M3Easing.Emphasized)
+        ).plus(fadeIn(animationSpec = tween(M3Duration.Medium1, easing = M3Easing.Emphasized))),
+        exit = shrinkVertically(
+            animationSpec = tween(M3Duration.Short3, easing = M3Easing.Accelerate)
+        ).plus(fadeOut(animationSpec = tween(M3Duration.Short3)))
+    ) {
+        content()
+    }
 }

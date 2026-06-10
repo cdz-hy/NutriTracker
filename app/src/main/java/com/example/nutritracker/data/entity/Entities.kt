@@ -60,7 +60,8 @@ data class Meal(
     val sodium100: Double? = null,
     val cholesterol100: Double? = null,
     val servingSize: String? = null,
-    val servingQuantityG: Double? = null
+    val servingQuantityG: Double? = null,
+    val foodItemsJson: String? = null  // AI分析的子食物项JSON，如 [{"name":"番茄炒蛋","weight_g":200,...}]
 )
 
 // ── Intake ───────────────────────────────────────────────────────────────────

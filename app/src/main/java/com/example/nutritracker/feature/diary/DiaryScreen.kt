@@ -90,13 +90,13 @@ fun DiaryScreen(
                         targetState = selectedDate,
                         transitionSpec = {
                             val isForward = targetState > initialState
-                            val enter = fadeIn(tween(200)) + slideInHorizontally(
-                                initialOffsetX = { if (isForward) it / 3 else -it / 3 },
-                                animationSpec = tween(250)
+                            val enter = fadeIn(tween(M3Duration.Medium2, easing = M3Easing.Decelerate)) + slideInHorizontally(
+                                initialOffsetX = { if (isForward) it / 4 else -it / 4 },
+                                animationSpec = tween(M3Duration.Medium2, easing = M3Easing.Decelerate)
                             )
-                            val exit = fadeOut(tween(150)) + slideOutHorizontally(
-                                targetOffsetX = { if (isForward) -it / 3 else it / 3 },
-                                animationSpec = tween(200)
+                            val exit = fadeOut(tween(M3Duration.Short3, easing = M3Easing.Accelerate)) + slideOutHorizontally(
+                                targetOffsetX = { if (isForward) -it / 4 else it / 4 },
+                                animationSpec = tween(M3Duration.Short3, easing = M3Easing.Accelerate)
                             )
                             enter togetherWith exit
                         },
@@ -149,7 +149,7 @@ fun DiaryScreen(
         } else {
             // ── 卡路里总览 ───────────────────────────────────────────
             item(key = "calorie_overview") {
-                StaggeredAnimatedItem(index = 0) {
+                StaggeredFadeIn(index = 0) {
                     CalorieOverviewCard(
                         goal = state.calorieGoal,
                         supplied = state.caloriesTracked,
@@ -164,7 +164,7 @@ fun DiaryScreen(
 
             // ── 宏量营养素 ───────────────────────────────────────────
             item(key = "macro_progress") {
-                StaggeredAnimatedItem(index = 1) {
+                StaggeredFadeIn(index = 1) {
                     MacroProgressRow(
                         carbsCurrent = state.carbsTracked,
                         carbsGoal = state.carbsGoal,
@@ -182,7 +182,7 @@ fun DiaryScreen(
                 val intakesForType = state.intakes.filter { it.intakeType == type }
                 if (intakesForType.isNotEmpty()) {
                     item(key = "section_header_$type") {
-                        StaggeredAnimatedItem(index = sectionIdx++) {
+                        StaggeredFadeIn(index = sectionIdx++) {
                             DiaryMealHeader(
                                 type = type,
                                 totalKcal = intakesForType.sumOf { intake ->
@@ -202,7 +202,7 @@ fun DiaryScreen(
             // ── 活动 ─────────────────────────────────────────────────
             if (state.activities.isNotEmpty()) {
                 item(key = "activity_header") {
-                    StaggeredAnimatedItem(index = sectionIdx++) {
+                    StaggeredFadeIn(index = sectionIdx++) {
                         DiaryActivityHeader(
                             totalKcal = state.activities.sumOf { it.burnedKcal }
                         )

@@ -30,6 +30,7 @@ data class AnalysisResult(
  * AI 识别的食物营养结果
  */
 data class NutritionResult(
+    @SerializedName("meal_name") val mealName: String = "",
     @SerializedName("total_calories") val totalCalories: Double = 0.0,
     @SerializedName("total_protein") val totalProtein: Double = 0.0,
     @SerializedName("total_fat") val totalFat: Double = 0.0,
@@ -161,8 +162,10 @@ class AiFoodAnalyzer(
 1. 只能返回标准的 JSON 数据，绝对不能包含任何 Markdown 标记（例如不要用 ```json 包裹）。
 2. JSON 内部不要包含任何注释（不要写 // 或 /* */）。
 3. 绝对不要返回任何前言、后记、问候语或解释性文本。
+4. meal_name 必须是概括性的自然描述，例如"汉堡薯条套餐"、"番茄炒蛋配米饭"、"外卖便当两荤一素"，而不是将食物项名称简单拼接。
 
 {
+  "meal_name": "概括性的饮食名称",
   "total_calories": 0,
   "total_protein": 0.0,
   "total_fat": 0.0,

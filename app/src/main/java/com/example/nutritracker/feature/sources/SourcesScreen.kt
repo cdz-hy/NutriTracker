@@ -116,14 +116,6 @@ fun SourcesScreen(
         )
     }
 
-    val visibleStates = remember { mutableStateListOf<Boolean>() }
-    LaunchedEffect(Unit) {
-        repeat(entries.size) {
-            delay(100)
-            visibleStates.add(true)
-        }
-    }
-
     val scrollBehavior = TopAppBarDefaults.enterAlwaysScrollBehavior()
 
     Scaffold(
@@ -172,10 +164,7 @@ fun SourcesScreen(
             }
 
             itemsIndexed(entries) { index, entry ->
-                AnimatedVisibility(
-                    visible = visibleStates.getOrElse(index) { false },
-                    enter = fadeSlideIn(offsetY = 60)
-                ) {
+                StaggeredFadeIn(index = index) {
                     SourceCard(
                         entry = entry,
                         onOpenUrl = { url ->
