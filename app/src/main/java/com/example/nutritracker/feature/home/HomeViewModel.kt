@@ -11,6 +11,7 @@ import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.LocalDateTime
 import javax.inject.Inject
+import com.example.nutritracker.feature.camera.AiAnalysisManager
 
 data class MealSection(
     val type: IntakeType,
@@ -52,11 +53,20 @@ class HomeViewModel @Inject constructor(
     private val activityRepo: ActivityRepository,
     private val waterRepo: WaterIntakeRepository,
     private val settingsRepo: SettingsRepository,
-    private val dayBoundaryCalc: DayBoundaryCalc
+    private val dayBoundaryCalc: DayBoundaryCalc,
+    private val aiAnalysisManager: AiAnalysisManager
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(HomeUiState())
     val state: StateFlow<HomeUiState> = _state.asStateFlow()
+
+    val aiIsAnalyzing: StateFlow<Boolean> = aiAnalysisManager.isAnalyzing
+    val aiAnalysisError: StateFlow<String?> = aiAnalysisManager.analysisError
+    val aiSuccessEvent: SharedFlow<String> = aiAnalysisManager.analysisSuccess
+
+    fun clearAiError() {
+        aiAnalysisManager.clearError()
+    }
 
     val onboardingDone: Flow<Boolean> = settingsRepo.onboardingDone
 
@@ -77,6 +87,12 @@ class HomeViewModel @Inject constructor(
                 settingsRepo.dayBoundaryMinutes
             ) { a, b, c -> Triple(a, b, c) }
             .collect { refresh() }
+        }
+        // 监听后台 AI 识图分析成功事件，自动刷新首页数据
+        viewModelScope.launch {
+            aiAnalysisManager.analysisSuccess.collect {
+                refresh()
+            }
         }
         refresh()
     }
@@ -222,6 +238,10 @@ class HomeViewModel @Inject constructor(
 
             refresh()
         }
+    }
+
+    fun analyzeAndCreateMeals(context: android.content.Context, uri: android.net.Uri, intakeType: IntakeType) {
+        aiAnalysisManager.analyzeAndCreateMeals(context, uri, intakeType)
     }
 
     fun deleteActivity(activity: UserActivityEntity) {

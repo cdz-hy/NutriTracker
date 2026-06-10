@@ -62,6 +62,7 @@ fun AddMealScreen(
         selectedImageUriStr?.value?.let { uriStr ->
             if (uriStr.isNotBlank()) {
                 navController.currentBackStackEntry?.savedStateHandle?.remove<String>("selected_image_uri")
+                navController.currentBackStackEntry?.savedStateHandle?.remove<Int>("intake_type_id")
                 vm.analyzeAndCreateMeals(context, android.net.Uri.parse(uriStr), intakeType)
             }
         }
@@ -85,9 +86,11 @@ fun AddMealScreen(
         }
     }
 
-    // 加载今日该餐类型的数据
-    LaunchedEffect(intakeTypeId) {
-        vm.loadTodayIntakes(intakeType)
+    // 加载今日该餐类型的数据 (在首次进入或 AI 分析结束时)
+    LaunchedEffect(intakeTypeId, isAnalyzing) {
+        if (!isAnalyzing) {
+            vm.loadTodayIntakes(intakeType)
+        }
     }
 
     Scaffold(

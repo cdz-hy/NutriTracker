@@ -1,6 +1,7 @@
 package com.example.nutritracker.feature.home
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -20,6 +21,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.repeatOnLifecycle
+import androidx.navigation.NavController
 import com.example.nutritracker.data.entity.IntakeType
 import com.example.nutritracker.ui.components.*
 import com.example.nutritracker.ui.theme.*
@@ -31,9 +33,45 @@ fun HomeScreen(
     onNavigateToAddMeal: (Int) -> Unit,
     onNavigateToAddActivity: () -> Unit,
     onNavigateToSources: () -> Unit,
+    onNavigateToCamera: (Int) -> Unit,
+    rootNavController: NavController,
     vm: HomeViewModel = hiltViewModel()
 ) {
     val state by vm.state.collectAsStateWithLifecycle()
+    val aiIsAnalyzing by vm.aiIsAnalyzing.collectAsStateWithLifecycle()
+    val aiAnalysisError by vm.aiAnalysisError.collectAsStateWithLifecycle()
+    val aiSuccessEvent by vm.aiSuccessEvent.collectAsStateWithLifecycle(initialValue = null)
+
+    val context = LocalContext.current
+
+    val selectedImageUriStr = rootNavController.currentBackStackEntry?.savedStateHandle
+        ?.getStateFlow<String?>("selected_image_uri", null)?.collectAsStateWithLifecycle()
+    val returnedIntakeTypeId = rootNavController.currentBackStackEntry?.savedStateHandle
+        ?.getStateFlow<Int>("intake_type_id", 0)?.collectAsStateWithLifecycle()
+
+    LaunchedEffect(selectedImageUriStr?.value) {
+        val uriStr = selectedImageUriStr?.value
+        if (!uriStr.isNullOrBlank()) {
+            val tId = returnedIntakeTypeId?.value ?: 0
+            val intakeType = IntakeType.entries.getOrElse(tId) { IntakeType.BREAKFAST }
+            rootNavController.currentBackStackEntry?.savedStateHandle?.remove<String>("selected_image_uri")
+            rootNavController.currentBackStackEntry?.savedStateHandle?.remove<Int>("intake_type_id")
+            vm.analyzeAndCreateMeals(context, android.net.Uri.parse(uriStr), intakeType)
+        }
+    }
+
+    LaunchedEffect(aiSuccessEvent) {
+        aiSuccessEvent?.let { msg ->
+            android.widget.Toast.makeText(context, msg, android.widget.Toast.LENGTH_LONG).show()
+        }
+    }
+
+    LaunchedEffect(aiAnalysisError) {
+        aiAnalysisError?.let { err ->
+            android.widget.Toast.makeText(context, err, android.widget.Toast.LENGTH_LONG).show()
+            vm.clearAiError()
+        }
+    }
 
     // 每次页面可见时刷新数据
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -43,29 +81,28 @@ fun HomeScreen(
         }
     }
 
-    if (state.isLoading) {
-        Box(
-            modifier = Modifier.fillMaxSize(),
-            contentAlignment = Alignment.Center
-        ) {
-            CircularProgressIndicator(
-                modifier = Modifier.size(48.dp),
-                color = MaterialTheme.colorScheme.primary
-            )
-        }
-        return
-    }
-
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(
-            start = Dimens.ContentPadding,
-            end = Dimens.ContentPadding,
-            top = 8.dp,
-            bottom = 80.dp
-        ),
-        verticalArrangement = Arrangement.spacedBy(Dimens.CardSpacing)
-    ) {
+    Box(modifier = Modifier.fillMaxSize()) {
+        if (state.isLoading) {
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(48.dp),
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
+        } else {
+            LazyColumn(
+                modifier = Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(
+                    start = Dimens.ContentPadding,
+                    end = Dimens.ContentPadding,
+                    top = 8.dp,
+                    bottom = 80.dp
+                ),
+                verticalArrangement = Arrangement.spacedBy(Dimens.CardSpacing)
+            ) {
         // ════════════════════════════════════════════════════════════════════
         // 卡路里总览卡片
         // ════════════════════════════════════════════════════════════════════
@@ -126,7 +163,8 @@ fun HomeScreen(
                     MealSectionHeader(
                         type = type,
                         totalKcal = section?.totalKcal ?: 0.0,
-                        onAddClick = { onNavigateToAddMeal(type.ordinal) }
+                        onAddClick = { onNavigateToAddMeal(type.ordinal) },
+                        onCameraClick = { onNavigateToCamera(type.ordinal) }
                     )
                 }
             }
@@ -138,10 +176,6 @@ fun HomeScreen(
                         meal = section.meals[intake.mealId],
                         onDelete = { vm.deleteIntake(intake) }
                     )
-                }
-            } else {
-                item(key = "empty_$type") {
-                    EmptyMealPlaceholder("点击 + 添加${mealTypeLabel(type)}")
                 }
             }
         }
@@ -165,9 +199,51 @@ fun HomeScreen(
                     onDelete = { vm.deleteActivity(activity) }
                 )
             }
-        } else {
-            item(key = "empty_activity") {
-                EmptyMealPlaceholder("点击 + 添加运动")
+        }
+            }
+        }
+
+        // Glassmorphic background AI analyzing float card
+        if (aiIsAnalyzing) {
+            Surface(
+                shape = MaterialTheme.shapes.large,
+                color = MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.9f),
+                border = BorderStroke(
+                    1.dp,
+                    MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                ),
+                tonalElevation = 6.dp,
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(horizontal = 24.dp, vertical = 16.dp)
+                    .fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier
+                        .padding(horizontal = 16.dp, vertical = 12.dp)
+                        .fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(24.dp),
+                        strokeWidth = 2.5.dp,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "AI 智能识别后台进行中...",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            text = "您可以继续浏览或记录其他项目",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
             }
         }
     }
@@ -181,10 +257,13 @@ fun HomeScreen(
 private fun MealSectionHeader(
     type: IntakeType,
     totalKcal: Double,
-    onAddClick: () -> Unit
+    onAddClick: () -> Unit,
+    onCameraClick: () -> Unit
 ) {
     ElevatedCard(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onAddClick() },
         colors = CardDefaults.elevatedCardColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainerLow
         ),
@@ -221,7 +300,7 @@ private fun MealSectionHeader(
                 Spacer(Modifier.width(8.dp))
             }
             FilledIconButton(
-                onClick = onAddClick,
+                onClick = onCameraClick,
                 modifier = Modifier.size(32.dp),
                 colors = IconButtonDefaults.filledIconButtonColors(
                     containerColor = MaterialTheme.colorScheme.primaryContainer,
@@ -248,7 +327,9 @@ private fun ActivitySectionHeader(
     onAddClick: () -> Unit
 ) {
     ElevatedCard(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onAddClick() },
         colors = CardDefaults.elevatedCardColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainerLow
         ),

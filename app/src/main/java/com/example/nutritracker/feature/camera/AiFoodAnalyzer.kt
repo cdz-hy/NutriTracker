@@ -73,10 +73,22 @@ class AiFoodAnalyzer(
                     .build()
                 val response = client.newCall(request).execute()
                 if (!response.isSuccessful) {
-                    return@withContext Result.failure(Exception("API error ${response.code}: ${response.message}"))
+                    return@withContext Result.failure(Exception("API 服务返回错误 (${response.code})，请检查配置或网络！"))
                 }
-                val body = response.body?.string() ?: return@withContext Result.failure(Exception("Empty response"))
-                val result = parseResponse(body)
+                val body = response.body?.string() ?: return@withContext Result.failure(Exception("AI 没有返回内容，请重试！"))
+                
+                val result = try {
+                    parseResponse(body)
+                } catch (e: com.google.gson.JsonSyntaxException) {
+                    return@withContext Result.failure(Exception("AI 响应的 JSON 数据格式解析失败，请重新拍摄！"))
+                } catch (e: Exception) {
+                    return@withContext Result.failure(Exception("分析结果解析失败: ${e.message}"))
+                }
+
+                if (result.totalCalories <= 0.0 && result.foodItems.isEmpty()) {
+                    return@withContext Result.failure(Exception("未在图片中检测到明显的食物，请尝试调整拍摄角度重新拍照！"))
+                }
+
                 Result.success(result)
             } catch (e: Exception) {
                 Result.failure(e)
@@ -184,22 +196,119 @@ class AiFoodAnalyzer(
                     )
                 )
             ),
-            "max_tokens" to 1500,
+            "max_tokens" to 8192,
             "temperature" to 0.1
         ))
     }
 
     private fun parseResponse(json: String): NutritionResult {
-        val root = gson.fromJson(json, Map::class.java)
+        // 解析 OpenAI 兼容格式的响应
+        val root = try {
+            gson.fromJson(json, Map::class.java)
+        } catch (e: Exception) {
+            throw Exception("AI 返回的不是有效的 JSON，原始响应(${json.take(200)}...)")
+        }
+
+        // 检查是否有错误信息
+        val errorMap = root["error"] as? Map<*, *>
+        if (errorMap != null) {
+            val errorMsg = errorMap["message"] as? String ?: "未知错误"
+            throw Exception("API 错误: $errorMsg")
+        }
+
         @Suppress("UNCHECKED_CAST")
-        val choices = root["choices"] as? List<Map<String, Any>> ?: throw Exception("No choices")
-        val message = choices.first()["message"] as? Map<*, *> ?: throw Exception("No message")
-        val content = message["content"] as? String ?: throw Exception("No content")
-        // 清理 markdown 代码块标记
-        val cleaned = content.trim()
-            .removePrefix("```json").removePrefix("```")
-            .removeSuffix("```")
-            .trim()
-        return gson.fromJson(cleaned, NutritionResult::class.java)
+        val choices = root["choices"] as? List<Map<String, Any>>
+            ?: throw Exception("AI 响应中没有 choices 字段，响应 keys: ${root.keys}")
+
+        if (choices.isEmpty()) throw Exception("AI 响应 choices 为空，可能模型不支持图片识别")
+
+        val choiceFirst = choices.first()
+        val message = choiceFirst["message"] as? Map<*, *>
+            ?: throw Exception("message 字段不存在或格式异常，keys: ${choiceFirst.keys}")
+
+        // 提取 content，兼容多种格式
+        val contentObj = message["content"]
+        val content: String = when {
+            contentObj == null -> {
+                // 尝试从 refusal 字段获取
+                (message["refusal"] as? String)
+                    ?.let { throw Exception("AI 拒绝回答: $it") }
+                throw Exception("AI 响应中既无 content 也无 refusal 字段，message keys: ${message.keys}")
+            }
+            contentObj is String -> contentObj
+            contentObj is List<*> -> {
+                // 多模态 API 返回数组格式
+                val textPart = contentObj.find {
+                    it is Map<*, *> && (it as Map<*, *>)["type"] == "text"
+                }
+                (textPart as? Map<*, *>)?.get("text") as? String
+                    ?: contentObj.toString()
+            }
+            else -> contentObj.toString()
+        }
+
+        if (content.isBlank()) {
+            // 检查是否有 finish_reason 可以提供更多信息
+            val finishReason = choiceFirst["finish_reason"] as? String ?: "unknown"
+            throw Exception("AI 返回了空内容 (finish_reason=$finishReason)，可能被内容审查过滤")
+        }
+
+        // 提取 JSON
+        val cleaned = extractJsonFromContent(content)
+        if (cleaned.isBlank()) {
+            throw Exception("AI 返回的内容中没有 JSON 数据。原始内容: ${content.take(300)}")
+        }
+
+        return try {
+            gson.fromJson(cleaned, NutritionResult::class.java)
+        } catch (e: com.google.gson.JsonSyntaxException) {
+            throw Exception("JSON 格式错误: ${e.message}。提取的内容: ${cleaned.take(300)}")
+        }
+    }
+
+    /**
+     * 从 AI 返回内容中提取 JSON
+     * 处理各种可能的格式：带/不带 markdown 标记、前后有多余文本等
+     */
+    private fun extractJsonFromContent(content: String): String {
+        var text = content.trim()
+
+        // 移除所有 markdown 代码块标记（可能有多层）
+        while (text.startsWith("```")) {
+            text = text.removePrefix("```json")
+                .removePrefix("```JSON")
+                .removePrefix("```")
+                .trim()
+        }
+        while (text.endsWith("```")) {
+            text = text.removeSuffix("```").trim()
+        }
+
+        // 如果内容不以 { 或 [ 开头，尝试找到第一个 { 或 [
+        if (!text.startsWith("{") && !text.startsWith("[")) {
+            val braceStart = text.indexOf('{')
+            val bracketStart = text.indexOf('[')
+            val start = when {
+                braceStart >= 0 && bracketStart >= 0 -> minOf(braceStart, bracketStart)
+                braceStart >= 0 -> braceStart
+                bracketStart >= 0 -> bracketStart
+                else -> -1
+            }
+            if (start >= 0) {
+                text = text.substring(start)
+            }
+        }
+
+        // 如果内容不以 } 或 ] 结尾，尝试找到最后一个 } 或 ]
+        if (!text.endsWith("}") && !text.endsWith("]")) {
+            val braceEnd = text.lastIndexOf('}')
+            val bracketEnd = text.lastIndexOf(']')
+            val end = maxOf(braceEnd, bracketEnd)
+            if (end >= 0) {
+                text = text.substring(0, end + 1)
+            }
+        }
+
+        return text.trim()
     }
 }

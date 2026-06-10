@@ -17,7 +17,9 @@ sealed class Screen(val route: String) {
     data object AddMeal : Screen("add_meal/{intakeTypeId}") {
         fun createRoute(intakeTypeId: Int) = "add_meal/$intakeTypeId"
     }
-    data object CameraCapture : Screen("camera_capture")
+    data object CameraCapture : Screen("camera_capture?intakeTypeId={intakeTypeId}") {
+        fun createRoute(intakeTypeId: Int = 0) = "camera_capture?intakeTypeId=$intakeTypeId"
+    }
     data object MealEdit : Screen("meal_edit?mealId={mealId}&intakeTypeId={intakeTypeId}") {
         fun createRoute(mealId: Long = -1, intakeTypeId: Int = 0) =
             "meal_edit?mealId=$mealId&intakeTypeId=$intakeTypeId"

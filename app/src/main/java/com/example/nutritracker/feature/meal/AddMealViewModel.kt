@@ -8,6 +8,7 @@ import android.content.Context
 import android.net.Uri
 import com.example.nutritracker.feature.camera.AnalysisResult
 import com.example.nutritracker.feature.camera.AiFoodAnalyzer
+import com.example.nutritracker.feature.camera.AiAnalysisManager
 import com.example.nutritracker.util.DayBoundaryCalc
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
@@ -23,7 +24,8 @@ class AddMealViewModel @Inject constructor(
     private val intakeRepo: IntakeRepository,
     private val trackedDayRepo: TrackedDayRepository,
     private val settingsRepo: SettingsRepository,
-    private val dayBoundaryCalc: DayBoundaryCalc
+    private val dayBoundaryCalc: DayBoundaryCalc,
+    private val aiAnalysisManager: AiAnalysisManager
 ) : ViewModel() {
 
     private val _todayIntakes = MutableStateFlow<List<Intake>>(emptyList())
@@ -32,61 +34,18 @@ class AddMealViewModel @Inject constructor(
     private val _mealsMap = MutableStateFlow<Map<Long, Meal>>(emptyMap())
     val mealsMap: StateFlow<Map<Long, Meal>> = _mealsMap.asStateFlow()
 
-    private val _isAnalyzing = MutableStateFlow(false)
-    val isAnalyzing: StateFlow<Boolean> = _isAnalyzing.asStateFlow()
-
-    private val _analysisError = MutableStateFlow<String?>(null)
-    val analysisError: StateFlow<String?> = _analysisError.asStateFlow()
+    val isAnalyzing: StateFlow<Boolean> = aiAnalysisManager.isAnalyzing
+    val analysisError: StateFlow<String?> = aiAnalysisManager.analysisError
 
     fun clearAnalysisError() {
-        _analysisError.value = null
+        aiAnalysisManager.clearError()
     }
 
     /**
      * 后台执行 AI 食物分析
      */
     fun analyzeAndCreateMeals(context: Context, uri: Uri, intakeType: IntakeType) {
-        viewModelScope.launch {
-            _isAnalyzing.value = true
-            _analysisError.value = null
-            try {
-                val apiKey = settingsRepo.aiApiKey.first()
-                val baseUrl = settingsRepo.aiBaseUrl.first()
-                val model = settingsRepo.aiModel.first()
-                if (apiKey.isBlank()) {
-                    _analysisError.value = "请先在设置中配置 AI API Key"
-                    _isAnalyzing.value = false
-                    return@launch
-                }
-
-                val result = withContext(Dispatchers.IO) {
-                    val analyzer = AiFoodAnalyzer(apiKey, baseUrl, model)
-                    // 保存低分辨率缩略图
-                    val thumbnailPath = analyzer.saveThumbnail(context, uri)
-                    // 分析图片
-                    val analysisResult = analyzer.analyzeImage(context, uri)
-                    analysisResult.map { nutritionResult ->
-                        AnalysisResult(
-                            nutritionResult = nutritionResult,
-                            thumbnailPath = thumbnailPath
-                        )
-                    }
-                }
-
-                result.fold(
-                    onSuccess = { ar ->
-                        createMealsFromAnalysis(ar, intakeType)
-                    },
-                    onFailure = { error ->
-                        _analysisError.value = error.message ?: "分析失败"
-                    }
-                )
-            } catch (e: Exception) {
-                _analysisError.value = e.message ?: "分析异常"
-            } finally {
-                _isAnalyzing.value = false
-            }
-        }
+        aiAnalysisManager.analyzeAndCreateMeals(context, uri, intakeType)
     }
 
     /**

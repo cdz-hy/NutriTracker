@@ -64,7 +64,10 @@ fun StaggeredAnimatedItem(
 ) {
     var visible by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) {
-        delay(baseDelayMs * index)
+        val delayTime = if (index < 6) baseDelayMs * index else 0L
+        if (delayTime > 0) {
+            delay(delayTime)
+        }
         visible = true
     }
     AnimatedVisibility(
@@ -72,7 +75,7 @@ fun StaggeredAnimatedItem(
         enter = fadeIn(
             animationSpec = tween(300, easing = FastOutSlowInEasing)
         ) + slideInVertically(
-            initialOffsetY = { 40 },
+            initialOffsetY = { 30 },
             animationSpec = tween(300, easing = FastOutSlowInEasing)
         )
     ) {

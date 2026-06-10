@@ -94,7 +94,7 @@ fun NutriTrackerNav() {
             val typeId = it.arguments?.getInt("intakeTypeId") ?: 0
             AddMealScreen(
                 intakeTypeId = typeId,
-                onNavigateToCamera = { rootNav.navigate(Screen.CameraCapture.route) },
+                onNavigateToCamera = { rootNav.navigate(Screen.CameraCapture.createRoute(typeId)) },
                 onMealSaved = { rootNav.popBackStack() },
                 onNavigateToEdit = { mealId, tId ->
                     rootNav.navigate(Screen.MealEdit.createRoute(mealId, tId))
@@ -102,10 +102,15 @@ fun NutriTrackerNav() {
                 navController = rootNav
             )
         }
-        composable(Screen.CameraCapture.route) {
+        composable(
+            route = Screen.CameraCapture.route,
+            arguments = listOf(navArgument("intakeTypeId") { type = NavType.IntType; defaultValue = 0 })
+        ) { backStackEntry ->
+            val intakeTypeId = backStackEntry.arguments?.getInt("intakeTypeId") ?: 0
             CameraCaptureScreen(
                 onImageSelected = { uri ->
                     rootNav.previousBackStackEntry?.savedStateHandle?.set("selected_image_uri", uri.toString())
+                    rootNav.previousBackStackEntry?.savedStateHandle?.set("intake_type_id", intakeTypeId)
                     rootNav.popBackStack()
                 },
                 onBack = { rootNav.popBackStack() }
@@ -212,7 +217,11 @@ fun MainScaffold(rootNav: androidx.navigation.NavHostController) {
                     },
                     onNavigateToSources = {
                         rootNav.navigate(Screen.Sources.route)
-                    }
+                    },
+                    onNavigateToCamera = { intakeTypeId ->
+                        rootNav.navigate(Screen.CameraCapture.createRoute(intakeTypeId))
+                    },
+                    rootNavController = rootNav
                 )
             }
             composable(Screen.Diary.route) {
