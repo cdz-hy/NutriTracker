@@ -1,0 +1,90 @@
+# ── Gradle ────────────────────────────────────────────
+.gradle/
+build/
+**/build/
+local.properties
+*.properties
+!gradle.properties
+
+# ── Android Studio ───────────────────────────────────
+*.iml
+.idea/
+.navigation/
+captures/
+.externalNativeBuild/
+.cxx/
+output.json
+*.hprof
+
+# ── Keystore / Signing (sensitive) ────────────────────
+*.jks
+*.keystore
+signing.properties
+keystore.properties
+
+# ── Kotlin / Generated code ──────────────────────────
+*.kotlin_module
+**/generated/
+**/*.g.dart
+**/*.freezed.dart
+**/*.mocks.dart
+
+# ── Environment (sensitive) ──────────────────────────
+.env
+.env.local
+.env.*.local
+
+# ── Local database (Hive encrypted) ──────────────────
+*.hive
+*.lock
+
+# ── Build outputs ────────────────────────────────────
+*.apk
+*.aab
+*.ap_
+*.dex
+*.class
+bin/
+gen/
+out/
+
+# ── Lint ─────────────────────────────────────────────
+lint/reports/
+lint/tmp/
+
+# ── Fastlane ─────────────────────────────────────────
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/screenshots/
+fastlane/test_output/
+fastlane/metadata/android/*/images/
+fastlane/metadata/android/*/screenshots/
+
+# ── GitHub ───────────────────────────────────────────
+.github/
+
+# ── NDK ──────────────────────────────────────────────
+libs/
+obj/
+
+# ── Temporary files ──────────────────────────────────
+tmp/
+temp/
+*.tmp
+*.temp
+*.log
+*.swp
+*.swo
+*~
+
+# ── OS generated ─────────────────────────────────────
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Desktop.ini
+OpenNutriTracker-main/
+icon.png
