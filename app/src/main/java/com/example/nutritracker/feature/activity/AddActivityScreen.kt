@@ -158,19 +158,24 @@ fun AddActivityScreen(
                 verticalArrangement = Arrangement.spacedBy(4.dp),
                 contentPadding = PaddingValues(bottom = 16.dp)
             ) {
+                var globalIdx = 0
                 grouped.forEach { (category, categoryActivities) ->
+                    val headerIdx = globalIdx++
                     item {
-                        Text(
-                            text = category.displayName,
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.padding(vertical = 8.dp)
-                        )
+                        StaggeredFadeIn(index = headerIdx) {
+                            Text(
+                                text = category.displayName,
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.padding(vertical = 8.dp)
+                            )
+                        }
                     }
+                    val itemsStartIdx = globalIdx
                     itemsIndexed(categoryActivities, key = { _, act -> act.code }) { index, activity ->
                         Box(modifier = Modifier.animateItem()) {
-                            StaggeredFadeIn(index = index) {
+                            StaggeredFadeIn(index = itemsStartIdx + index) {
                                 ActivityListItem(
                                     activity = activity,
                                     isSelected = selectedActivity?.code == activity.code,
@@ -179,6 +184,7 @@ fun AddActivityScreen(
                             }
                         }
                     }
+                    globalIdx += categoryActivities.size
                 }
             }
         }

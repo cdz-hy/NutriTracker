@@ -7,6 +7,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -46,19 +47,26 @@ fun HomeScreen(
 
     val context = LocalContext.current
 
-    val selectedImageUriStr = rootNavController.currentBackStackEntry?.savedStateHandle
-        ?.getStateFlow<String?>("selected_image_uri", null)?.collectAsStateWithLifecycle()
+    val selectedImageUrisStr = rootNavController.currentBackStackEntry?.savedStateHandle
+        ?.getStateFlow<String?>("selected_image_uris", null)?.collectAsStateWithLifecycle()
     val returnedIntakeTypeId = rootNavController.currentBackStackEntry?.savedStateHandle
         ?.getStateFlow<Int>("intake_type_id", 0)?.collectAsStateWithLifecycle()
 
-    LaunchedEffect(selectedImageUriStr?.value) {
-        val uriStr = selectedImageUriStr?.value
-        if (!uriStr.isNullOrBlank()) {
+    LaunchedEffect(selectedImageUrisStr?.value) {
+        val urisJson = selectedImageUrisStr?.value
+        if (!urisJson.isNullOrBlank()) {
             val tId = returnedIntakeTypeId?.value ?: 0
             val intakeType = IntakeType.entries.getOrElse(tId) { IntakeType.BREAKFAST }
-            rootNavController.currentBackStackEntry?.savedStateHandle?.remove<String>("selected_image_uri")
+            rootNavController.currentBackStackEntry?.savedStateHandle?.remove<String>("selected_image_uris")
             rootNavController.currentBackStackEntry?.savedStateHandle?.remove<Int>("intake_type_id")
-            vm.analyzeAndCreateMeals(context, android.net.Uri.parse(uriStr), intakeType)
+            try {
+                val listType = object : com.google.gson.reflect.TypeToken<List<String>>() {}.type
+                val uriStrings: List<String> = com.google.gson.Gson().fromJson(urisJson, listType)
+                val uris = uriStrings.map { android.net.Uri.parse(it) }
+                vm.analyzeAndCreateMeals(context, uris, intakeType)
+            } catch (e: Exception) {
+                // Ignore parsing errors
+            }
         }
     }
 
@@ -160,9 +168,10 @@ fun HomeScreen(
 
         mealTypes.forEach { type ->
             val section = state.mealSections.find { it.type == type }
+            val headerIdx = animIdx++
 
             item(key = "meal_header_$type") {
-                StaggeredFadeIn(index = animIdx++) {
+                StaggeredFadeIn(index = headerIdx) {
                     MealSectionHeader(
                         type = type,
                         totalKcal = section?.totalKcal ?: 0.0,
@@ -173,9 +182,9 @@ fun HomeScreen(
             }
 
             if (section != null && section.intakes.isNotEmpty()) {
-                items(section.intakes, key = { "intake_${it.id}" }) { intake ->
-                    val itemIdx = animIdx++
-                    StaggeredFadeIn(index = itemIdx) {
+                val itemsStartIdx = animIdx
+                itemsIndexed(section.intakes, key = { _, intake -> "intake_${intake.id}" }) { index, intake ->
+                    StaggeredFadeIn(index = itemsStartIdx + index) {
                         Box(modifier = Modifier.animateItem()) {
                             MealIntakeItem(
                                 intake = intake,
@@ -186,11 +195,13 @@ fun HomeScreen(
                         }
                     }
                 }
+                animIdx += section.intakes.size
             }
         }
         // ════════════════════════════════════════════════════════════════════
+        val activityHeaderIdx = animIdx++
         item(key = "activity_header") {
-            StaggeredFadeIn(index = animIdx++) {
+            StaggeredFadeIn(index = activityHeaderIdx) {
                 ActivitySectionHeader(
                     totalKcal = state.activities.sumOf { it.burnedKcal },
                     onAddClick = onNavigateToAddActivity
@@ -199,9 +210,9 @@ fun HomeScreen(
         }
 
         if (state.activities.isNotEmpty()) {
-            items(state.activities, key = { "activity_${it.id}" }) { activity ->
-                val itemIdx = animIdx++
-                StaggeredFadeIn(index = itemIdx) {
+            val activityStartIdx = animIdx
+            itemsIndexed(state.activities, key = { _, activity -> "activity_${activity.id}" }) { index, activity ->
+                StaggeredFadeIn(index = activityStartIdx + index) {
                     Box(modifier = Modifier.animateItem()) {
                         ActivityItem(
                             activity = activity,
@@ -210,6 +221,7 @@ fun HomeScreen(
                     }
                 }
             }
+            animIdx += state.activities.size
         }
             }
         }
@@ -417,6 +429,7 @@ private fun MealIntakeItem(
     onDelete: () -> Unit
 ) {
     var showDeleteConfirm by remember { mutableStateOf(false) }
+    var showFullScreenImage by remember { mutableStateOf<String?>(null) }
     val kcal = (meal?.energyKcal100 ?: 0.0) * intake.amount / 100.0
 
     Card(
@@ -445,7 +458,8 @@ private fun MealIntakeItem(
                     contentDescription = null,
                     modifier = Modifier
                         .size(40.dp)
-                        .clip(androidx.compose.foundation.shape.RoundedCornerShape(8.dp)),
+                        .clip(androidx.compose.foundation.shape.RoundedCornerShape(8.dp))
+                        .clickable { showFullScreenImage = thumbnailPath },
                     contentScale = androidx.compose.ui.layout.ContentScale.Crop
                 )
                 Spacer(Modifier.width(12.dp))
@@ -513,6 +527,13 @@ private fun MealIntakeItem(
             dismissButton = {
                 TextButton(onClick = { showDeleteConfirm = false }) { Text("取消") }
             }
+        )
+    }
+
+    if (showFullScreenImage != null) {
+        FullScreenImageDialog(
+            imagePath = showFullScreenImage!!,
+            onDismiss = { showFullScreenImage = null }
         )
     }
 }

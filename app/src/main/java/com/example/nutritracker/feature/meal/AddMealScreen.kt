@@ -34,6 +34,7 @@ import com.example.nutritracker.feature.camera.AnalysisResult
 import com.example.nutritracker.feature.home.mealTypeIcon
 import com.example.nutritracker.feature.home.mealTypeLabel
 import com.example.nutritracker.feature.camera.NutritionResult
+import com.example.nutritracker.ui.components.FullScreenImageDialog
 import com.example.nutritracker.ui.theme.*
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
@@ -60,15 +61,21 @@ fun AddMealScreen(
     val snackbarHostState = remember { SnackbarHostState() }
 
     // 监听相机返回的选中图片 URI
-    val selectedImageUriStr = navController.currentBackStackEntry?.savedStateHandle
-        ?.getStateFlow<String?>("selected_image_uri", null)?.collectAsStateWithLifecycle()
+    val selectedImageUrisStr = navController.currentBackStackEntry?.savedStateHandle
+        ?.getStateFlow<String?>("selected_image_uris", null)?.collectAsStateWithLifecycle()
     val context = LocalContext.current
-    LaunchedEffect(selectedImageUriStr?.value) {
-        selectedImageUriStr?.value?.let { uriStr ->
-            if (uriStr.isNotBlank()) {
-                navController.currentBackStackEntry?.savedStateHandle?.remove<String>("selected_image_uri")
-                navController.currentBackStackEntry?.savedStateHandle?.remove<Int>("intake_type_id")
-                vm.analyzeAndCreateMeals(context, android.net.Uri.parse(uriStr), intakeType)
+    LaunchedEffect(selectedImageUrisStr?.value) {
+        val urisJson = selectedImageUrisStr?.value
+        if (!urisJson.isNullOrBlank()) {
+            navController.currentBackStackEntry?.savedStateHandle?.remove<String>("selected_image_uris")
+            navController.currentBackStackEntry?.savedStateHandle?.remove<Int>("intake_type_id")
+            try {
+                val listType = object : TypeToken<List<String>>() {}.type
+                val uriStrings: List<String> = Gson().fromJson(urisJson, listType)
+                val uris = uriStrings.map { android.net.Uri.parse(it) }
+                vm.analyzeAndCreateMeals(context, uris, intakeType)
+            } catch (e: Exception) {
+                // Ignore parse errors
             }
         }
     }
@@ -326,6 +333,7 @@ private fun MealIntakeCard(
 ) {
     var showDeleteConfirm by remember { mutableStateOf(false) }
     var expanded by remember { mutableStateOf(false) }
+    var showFullScreenImage by remember { mutableStateOf<String?>(null) }
 
     // 解析食物项列表
     val foodItems = remember(meal?.foodItemsJson) {
@@ -372,7 +380,8 @@ private fun MealIntakeCard(
                         contentDescription = null,
                         modifier = Modifier
                             .size(56.dp)
-                            .clip(MaterialTheme.shapes.medium),
+                            .clip(MaterialTheme.shapes.medium)
+                            .clickable { showFullScreenImage = thumbnailPath },
                         contentScale = ContentScale.Crop
                     )
                 } else {
@@ -542,6 +551,12 @@ private fun MealIntakeCard(
             dismissButton = {
                 TextButton(onClick = { showDeleteConfirm = false }) { Text("取消") }
             }
+        )
+    }
+    if (showFullScreenImage != null) {
+        FullScreenImageDialog(
+            imagePath = showFullScreenImage!!,
+            onDismiss = { showFullScreenImage = null }
         )
     }
 }

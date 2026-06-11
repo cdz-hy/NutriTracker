@@ -108,8 +108,9 @@ fun NutriTrackerNav() {
         ) { backStackEntry ->
             val intakeTypeId = backStackEntry.arguments?.getInt("intakeTypeId") ?: 0
             CameraCaptureScreen(
-                onImageSelected = { uri ->
-                    rootNav.previousBackStackEntry?.savedStateHandle?.set("selected_image_uri", uri.toString())
+                onImageSelected = { uris ->
+                    val urisJson = com.google.gson.Gson().toJson(uris.map { it.toString() })
+                    rootNav.previousBackStackEntry?.savedStateHandle?.set("selected_image_uris", urisJson)
                     rootNav.previousBackStackEntry?.savedStateHandle?.set("intake_type_id", intakeTypeId)
                     rootNav.popBackStack()
                 },

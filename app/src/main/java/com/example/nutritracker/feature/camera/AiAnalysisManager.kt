@@ -17,7 +17,7 @@ import javax.inject.Singleton
  */
 data class AnalysisTask(
     val id: Int,
-    val uri: Uri,
+    val uris: List<Uri>,
     val intakeType: IntakeType,
     val status: TaskStatus = TaskStatus.PENDING
 )
@@ -62,12 +62,14 @@ class AiAnalysisManager @Inject constructor(
     }
 
     /**
-     * 添加图片到分析队列，立即返回
+     * 添加多张图片到分析队列，立即返回
      * 每个任务独立运行，互不阻塞
      */
-    fun analyzeAndCreateMeals(context: Context, uri: Uri, intakeType: IntakeType) {
+    fun analyzeAndCreateMeals(context: Context, uris: List<Uri>, intakeType: IntakeType) {
+        if (uris.isEmpty()) return
+        
         val taskId = taskIdCounter.incrementAndGet()
-        val task = AnalysisTask(id = taskId, uri = uri, intakeType = intakeType, status = TaskStatus.PENDING)
+        val task = AnalysisTask(id = taskId, uris = uris, intakeType = intakeType, status = TaskStatus.PENDING)
 
         // 添加到任务列表
         _tasks.update { current -> current + task }
@@ -89,10 +91,10 @@ class AiAnalysisManager @Inject constructor(
 
                 val result = withContext(Dispatchers.IO) {
                     val analyzer = AiFoodAnalyzer(apiKey, baseUrl, model)
-                    // 保存缩略图
-                    val thumbnailPath = analyzer.saveThumbnail(context, uri)
-                    // 分析图片
-                    val analysisResult = analyzer.analyzeImage(context, uri)
+                    // 保存第一张图片的缩略图作为该餐的封面
+                    val thumbnailPath = analyzer.saveThumbnail(context, uris.first())
+                    // 分析多张图片
+                    val analysisResult = analyzer.analyzeImages(context, uris)
                     analysisResult.map { nutritionResult ->
                         AnalysisResult(nutritionResult = nutritionResult, thumbnailPath = thumbnailPath)
                     }

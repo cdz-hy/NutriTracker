@@ -44,8 +44,8 @@ class AddMealViewModel @Inject constructor(
     /**
      * 后台执行 AI 食物分析
      */
-    fun analyzeAndCreateMeals(context: Context, uri: Uri, intakeType: IntakeType) {
-        aiAnalysisManager.analyzeAndCreateMeals(context, uri, intakeType)
+    fun analyzeAndCreateMeals(context: Context, uris: List<Uri>, intakeType: IntakeType) {
+        aiAnalysisManager.analyzeAndCreateMeals(context, uris, intakeType)
     }
 
     /**

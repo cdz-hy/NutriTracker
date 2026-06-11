@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.pm.PackageManager
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageCapture
@@ -15,6 +16,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CameraAlt
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -23,7 +26,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.viewinterop.AndroidView
+import coil.compose.AsyncImage
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import java.io.File
@@ -31,7 +36,7 @@ import java.io.File
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CameraCaptureScreen(
-    onImageSelected: (Uri) -> Unit,
+    onImageSelected: (List<Uri>) -> Unit,
     onBack: () -> Unit
 ) {
     val context = LocalContext.current
@@ -43,6 +48,9 @@ fun CameraCaptureScreen(
     }
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
+    val selectedUris = remember { mutableStateListOf<Uri>() }
+    val maxImages = 4
+
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { granted ->
@@ -50,9 +58,16 @@ fun CameraCaptureScreen(
     }
 
     val galleryLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.GetContent()
-    ) { uri: Uri? ->
-        uri?.let { onImageSelected(it) }
+        ActivityResultContracts.PickMultipleVisualMedia(maxItems = maxImages)
+    ) { uris ->
+        if (uris.isNotEmpty()) {
+            val remainingSpace = maxImages - selectedUris.size
+            if (remainingSpace > 0) {
+                selectedUris.addAll(uris.take(remainingSpace))
+            } else {
+                errorMessage = "最多只能选择 $maxImages 张图片"
+            }
+        }
     }
 
     LaunchedEffect(Unit) {
@@ -151,10 +166,15 @@ fun CameraCaptureScreen(
             errorMessage?.let { msg ->
                 Snackbar(
                     modifier = Modifier
-                        .align(Alignment.BottomCenter)
+                        .align(Alignment.Center)
                         .padding(16.dp),
                     containerColor = MaterialTheme.colorScheme.errorContainer,
-                    contentColor = MaterialTheme.colorScheme.onErrorContainer
+                    contentColor = MaterialTheme.colorScheme.onErrorContainer,
+                    action = {
+                        TextButton(onClick = { errorMessage = null }) {
+                            Text("关闭", color = MaterialTheme.colorScheme.onErrorContainer)
+                        }
+                    }
                 ) {
                     Text(
                         text = msg,
@@ -163,50 +183,123 @@ fun CameraCaptureScreen(
                 }
             }
 
-            // Bottom controls
-            Row(
+            // Thumbnail queue and Bottom controls
+            Column(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
-                    .padding(32.dp),
-                horizontalArrangement = Arrangement.spacedBy(32.dp)
+                    .fillMaxWidth()
+                    .padding(bottom = 32.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                FloatingActionButton(
-                    onClick = { galleryLauncher.launch("image/*") },
-                    containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-                    contentColor = MaterialTheme.colorScheme.onSurface
-                ) {
-                    Icon(
-                        Icons.Filled.PhotoLibrary,
-                        contentDescription = "从相册选择",
-                        modifier = Modifier.size(24.dp)
-                    )
-                }
-                LargeFloatingActionButton(
-                    onClick = {
-                        if (!hasCameraPermission) return@LargeFloatingActionButton
-                        val photoFile = File(context.cacheDir, "food_${System.currentTimeMillis()}.jpg")
-                        val outputOptions = ImageCapture.OutputFileOptions.Builder(photoFile).build()
-                        imageCapture.takePicture(
-                            outputOptions,
-                            ContextCompat.getMainExecutor(context),
-                            object : ImageCapture.OnImageSavedCallback {
-                                override fun onImageSaved(output: ImageCapture.OutputFileResults) {
-                                    onImageSelected(Uri.fromFile(photoFile))
-                                }
-                                override fun onError(exception: ImageCaptureException) {
-                                    errorMessage = "拍照失败: ${exception.message}"
+                if (selectedUris.isNotEmpty()) {
+                    // 缩略图队列
+                    androidx.compose.foundation.lazy.LazyRow(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
+                        contentPadding = PaddingValues(horizontal = 16.dp)
+                    ) {
+                        items(selectedUris.size) { index ->
+                            val uri = selectedUris[index]
+                            Box(
+                                modifier = Modifier
+                                    .size(64.dp)
+                                    .padding(4.dp)
+                            ) {
+                                AsyncImage(
+                                    model = uri,
+                                    contentDescription = "Thumbnail",
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                                IconButton(
+                                    onClick = { selectedUris.remove(uri) },
+                                    modifier = Modifier
+                                        .align(Alignment.TopEnd)
+                                        .size(20.dp)
+                                        .padding(2.dp)
+                                ) {
+                                    Icon(
+                                        Icons.Filled.Close,
+                                        contentDescription = "Remove",
+                                        tint = MaterialTheme.colorScheme.error
+                                    )
                                 }
                             }
-                        )
-                    },
-                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                        }
+                    }
+                }
+
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(32.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(
-                        Icons.Filled.CameraAlt,
-                        contentDescription = "拍照",
-                        modifier = Modifier.size(36.dp)
-                    )
+                    if (selectedUris.isNotEmpty()) {
+                        FloatingActionButton(
+                            onClick = { onImageSelected(selectedUris.toList()) },
+                            containerColor = MaterialTheme.colorScheme.primary,
+                            contentColor = MaterialTheme.colorScheme.onPrimary
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 16.dp),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(Icons.Filled.Check, contentDescription = "完成")
+                                Text("完成 (${selectedUris.size})", fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+
+                    FloatingActionButton(
+                        onClick = { 
+                            if (selectedUris.size >= maxImages) {
+                                errorMessage = "最多只能选择 $maxImages 张图片"
+                            } else {
+                                galleryLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) 
+                            }
+                        },
+                        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                        contentColor = MaterialTheme.colorScheme.onSurface
+                    ) {
+                        Icon(
+                            Icons.Filled.PhotoLibrary,
+                            contentDescription = "从相册选择",
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+
+                    LargeFloatingActionButton(
+                        onClick = {
+                            if (!hasCameraPermission) return@LargeFloatingActionButton
+                            if (selectedUris.size >= maxImages) {
+                                errorMessage = "最多只能选择 $maxImages 张图片"
+                                return@LargeFloatingActionButton
+                            }
+                            val photoFile = File(context.cacheDir, "food_${System.currentTimeMillis()}.jpg")
+                            val outputOptions = ImageCapture.OutputFileOptions.Builder(photoFile).build()
+                            imageCapture.takePicture(
+                                outputOptions,
+                                ContextCompat.getMainExecutor(context),
+                                object : ImageCapture.OnImageSavedCallback {
+                                    override fun onImageSaved(output: ImageCapture.OutputFileResults) {
+                                        selectedUris.add(Uri.fromFile(photoFile))
+                                    }
+                                    override fun onError(exception: ImageCaptureException) {
+                                        errorMessage = "拍照失败: ${exception.message}"
+                                    }
+                                }
+                            )
+                        },
+                        containerColor = MaterialTheme.colorScheme.primaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                    ) {
+                        Icon(
+                            Icons.Filled.CameraAlt,
+                            contentDescription = "拍照",
+                            modifier = Modifier.size(36.dp)
+                        )
+                    }
                 }
             }
         }

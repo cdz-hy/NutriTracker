@@ -6,6 +6,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -114,14 +115,54 @@ fun MealEditScreen(
                 )
             )
 
+            // Sub-items section
+            if (vm.foodItems.isNotEmpty()) {
+                Text(
+                    text = "包含子项 (修改子项将自动计算总计)",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(top = 8.dp)
+                )
+
+                vm.foodItems.forEach { item ->
+                    SubItemCard(
+                        item = item,
+                        onUpdate = { vm.updateFoodItem(item.id) { _ -> it } },
+                        onRemove = { vm.removeFoodItem(item.id) },
+                        enabled = !vm.isSaving
+                    )
+                }
+
+                OutlinedButton(
+                    onClick = { vm.addFoodItem() },
+                    enabled = !vm.isSaving,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("添加新子项")
+                }
+                
+                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+            } else {
+                OutlinedButton(
+                    onClick = { vm.addFoodItem() },
+                    enabled = !vm.isSaving,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("添加子项")
+                }
+            }
+
+            val fieldsEnabled = !vm.isSaving && vm.foodItems.isEmpty()
+
             // Amount
             OutlinedTextField(
                 value = state.amountStr,
                 onValueChange = { vm.updateAmount(it) },
-                enabled = !vm.isSaving,
+                enabled = fieldsEnabled,
                 label = {
                     Text(
-                        text = "份量 (g)",
+                        text = if (!fieldsEnabled) "份量 (g) - 自动计算" else "份量 (g)",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -136,7 +177,10 @@ fun MealEditScreen(
                     unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
                     cursorColor = MaterialTheme.colorScheme.primary,
                     focusedTextColor = MaterialTheme.colorScheme.onSurface,
-                    unfocusedTextColor = MaterialTheme.colorScheme.onSurface
+                    unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                    disabledTextColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                    disabledBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f),
+                    disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                 )
             )
 
@@ -149,10 +193,10 @@ fun MealEditScreen(
                 modifier = Modifier.padding(top = 8.dp)
             )
 
-            NutrientField("卡路里 (kcal)", state.energyStr, enabled = !vm.isSaving) { vm.updateEnergy(it) }
-            NutrientField("碳水化合物 (g)", state.carbsStr, enabled = !vm.isSaving) { vm.updateCarbs(it) }
-            NutrientField("脂肪 (g)", state.fatStr, enabled = !vm.isSaving) { vm.updateFat(it) }
-            NutrientField("蛋白质 (g)", state.proteinStr, enabled = !vm.isSaving) { vm.updateProtein(it) }
+            NutrientField("卡路里 (kcal)", state.energyStr, enabled = fieldsEnabled) { vm.updateEnergy(it) }
+            NutrientField("碳水化合物 (g)", state.carbsStr, enabled = fieldsEnabled) { vm.updateCarbs(it) }
+            NutrientField("脂肪 (g)", state.fatStr, enabled = fieldsEnabled) { vm.updateFat(it) }
+            NutrientField("蛋白质 (g)", state.proteinStr, enabled = fieldsEnabled) { vm.updateProtein(it) }
             NutrientField("糖 (g)", state.sugarsStr, enabled = !vm.isSaving) { vm.updateSugars(it) }
             NutrientField("饱和脂肪 (g)", state.satFatStr, enabled = !vm.isSaving) { vm.updateSatFat(it) }
             NutrientField("膳食纤维 (g)", state.fiberStr, enabled = !vm.isSaving) { vm.updateFiber(it) }
@@ -307,4 +351,119 @@ private fun NutrientField(
             unfocusedTextColor = MaterialTheme.colorScheme.onSurface
         )
     )
+}
+
+@Composable
+private fun SubItemCard(
+    item: EditableFoodItem,
+    onUpdate: (EditableFoodItem) -> Unit,
+    onRemove: () -> Unit,
+    enabled: Boolean
+) {
+    ElevatedCard(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.elevatedCardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainer
+        )
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                OutlinedTextField(
+                    value = item.name,
+                    onValueChange = { onUpdate(item.copy(name = it)) },
+                    label = { Text("名称") },
+                    enabled = enabled,
+                    modifier = Modifier.weight(1f),
+                    singleLine = true,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                        unfocusedBorderColor = MaterialTheme.colorScheme.outline
+                    )
+                )
+                IconButton(onClick = onRemove, enabled = enabled) {
+                    Icon(
+                        Icons.Filled.Delete,
+                        contentDescription = "删除",
+                        tint = MaterialTheme.colorScheme.error
+                    )
+                }
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(
+                    value = item.weightG,
+                    onValueChange = { onUpdate(item.copy(weightG = it)) },
+                    label = { Text("重量(g)") },
+                    enabled = enabled,
+                    modifier = Modifier.weight(1f),
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                        unfocusedBorderColor = MaterialTheme.colorScheme.outline
+                    )
+                )
+                OutlinedTextField(
+                    value = item.calories,
+                    onValueChange = { onUpdate(item.copy(calories = it)) },
+                    label = { Text("Kcal") },
+                    enabled = enabled,
+                    modifier = Modifier.weight(1f),
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                        unfocusedBorderColor = MaterialTheme.colorScheme.outline
+                    )
+                )
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(
+                    value = item.carbs,
+                    onValueChange = { onUpdate(item.copy(carbs = it)) },
+                    label = { Text("碳水") },
+                    enabled = enabled,
+                    modifier = Modifier.weight(1f),
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                        unfocusedBorderColor = MaterialTheme.colorScheme.outline
+                    )
+                )
+                OutlinedTextField(
+                    value = item.protein,
+                    onValueChange = { onUpdate(item.copy(protein = it)) },
+                    label = { Text("蛋白质") },
+                    enabled = enabled,
+                    modifier = Modifier.weight(1f),
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                        unfocusedBorderColor = MaterialTheme.colorScheme.outline
+                    )
+                )
+                OutlinedTextField(
+                    value = item.fat,
+                    onValueChange = { onUpdate(item.copy(fat = it)) },
+                    label = { Text("脂肪") },
+                    enabled = enabled,
+                    modifier = Modifier.weight(1f),
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                        unfocusedBorderColor = MaterialTheme.colorScheme.outline
+                    )
+                )
+            }
+        }
+    }
 }

@@ -5,6 +5,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
@@ -24,12 +25,18 @@ import com.example.nutritracker.data.entity.IntakeType
 import com.example.nutritracker.feature.home.mealTypeIcon
 import com.example.nutritracker.feature.home.mealTypeLabel
 import com.example.nutritracker.ui.components.*
+import com.example.nutritracker.ui.components.FullScreenImageDialog
 import com.example.nutritracker.ui.theme.*
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
 import java.util.Locale
 import kotlin.math.roundToInt
+import java.io.File
+import androidx.compose.ui.platform.LocalContext
+import coil.compose.AsyncImage
+import coil.request.ImageRequest
+import androidx.compose.ui.layout.ContentScale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -197,8 +204,9 @@ fun DiaryScreen(
             IntakeType.entries.forEach { type ->
                 val intakesForType = state.intakes.filter { it.intakeType == type }
                 if (intakesForType.isNotEmpty()) {
+                    val headerIdx = sectionIdx++
                     item(key = "section_header_$type") {
-                        StaggeredFadeIn(index = sectionIdx++) {
+                        StaggeredFadeIn(index = headerIdx) {
                             DiaryMealHeader(
                                 type = type,
                                 totalKcal = intakesForType.sumOf { intake ->
@@ -208,30 +216,32 @@ fun DiaryScreen(
                             )
                         }
                     }
-                    items(intakesForType, key = { "diary_intake_${it.id}" }) { intake ->
+                    val itemsStartIdx = sectionIdx
+                    itemsIndexed(intakesForType, key = { _, it -> "diary_intake_${it.id}" }) { index, intake ->
                         val meal = state.meals[intake.mealId]
-                        val itemIdx = sectionIdx++
-                        StaggeredFadeIn(index = itemIdx) {
+                        StaggeredFadeIn(index = itemsStartIdx + index) {
                             Box(modifier = Modifier.animateItem()) {
                                 DiaryIntakeCard(intake = intake, meal = meal)
                             }
                         }
                     }
+                    sectionIdx += intakesForType.size
                 }
             }
 
             // ── 活动 ─────────────────────────────────────────────────
             if (state.activities.isNotEmpty()) {
+                val activityHeaderIdx = sectionIdx++
                 item(key = "activity_header") {
-                    StaggeredFadeIn(index = sectionIdx++) {
+                    StaggeredFadeIn(index = activityHeaderIdx) {
                         DiaryActivityHeader(
                             totalKcal = state.activities.sumOf { it.burnedKcal }
                         )
                     }
                 }
-                items(state.activities, key = { "diary_activity_${it.id}" }) { activity ->
-                    val itemIdx = sectionIdx++
-                    StaggeredFadeIn(index = itemIdx) {
+                val activityStartIdx = sectionIdx
+                itemsIndexed(state.activities, key = { _, it -> "diary_activity_${it.id}" }) { index, activity ->
+                    StaggeredFadeIn(index = activityStartIdx + index) {
                         Box(modifier = Modifier.animateItem()) {
                             Card(
                                 modifier = Modifier.fillMaxWidth(),
@@ -391,6 +401,8 @@ private fun DiaryIntakeCard(
     intake: com.example.nutritracker.data.entity.Intake,
     meal: com.example.nutritracker.data.entity.Meal?
 ) {
+    var showFullScreenImage by remember { mutableStateOf<String?>(null) }
+    
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
@@ -400,6 +412,23 @@ private fun DiaryIntakeCard(
         shape = MaterialTheme.shapes.medium
     ) {
         ListItem(
+            leadingContent = {
+                val thumbnailPath = meal?.localImagePath
+                if (thumbnailPath != null && File(thumbnailPath).exists()) {
+                    AsyncImage(
+                        model = ImageRequest.Builder(LocalContext.current)
+                            .data(File(thumbnailPath))
+                            .crossfade(true)
+                            .build(),
+                        contentDescription = null,
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clip(MaterialTheme.shapes.medium)
+                            .clickable { showFullScreenImage = thumbnailPath },
+                        contentScale = ContentScale.Crop
+                    )
+                }
+            },
             headlineContent = {
                 Text(
                     text = meal?.name ?: "未知",
@@ -417,6 +446,13 @@ private fun DiaryIntakeCard(
             colors = ListItemDefaults.colors(
                 containerColor = MaterialTheme.colorScheme.surfaceContainerLow
             )
+        )
+    }
+
+    if (showFullScreenImage != null) {
+        FullScreenImageDialog(
+            imagePath = showFullScreenImage!!,
+            onDismiss = { showFullScreenImage = null }
         )
     }
 }
