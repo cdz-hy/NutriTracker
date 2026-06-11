@@ -1,5 +1,7 @@
 package com.example.nutritracker.feature.settings
 
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -14,6 +16,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -342,8 +345,17 @@ fun SettingsScreen(
         // About section
         SectionTitle(icon = Icons.Filled.Info, title = "关于")
 
+        val context = LocalContext.current
+        val versionName = remember {
+            try {
+                context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "未知"
+            } catch (_: Exception) { "未知" }
+        }
+
         ElevatedCard(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth().clickable {
+                context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/cdz-hy/NutriTracker")))
+            },
             colors = CardDefaults.elevatedCardColors(
                 containerColor = MaterialTheme.colorScheme.surfaceContainerLow
             ),
@@ -360,7 +372,7 @@ fun SettingsScreen(
                 },
                 supportingContent = {
                     Text(
-                        text = "版本 1.0 · 基于 OpenNutriTracker 设计",
+                        text = "版本 $versionName",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )

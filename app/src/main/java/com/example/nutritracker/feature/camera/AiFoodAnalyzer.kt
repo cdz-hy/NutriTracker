@@ -110,8 +110,8 @@ class AiFoodAnalyzer(
             val bitmap = BitmapFactory.decodeStream(inputStream)
             inputStream.close()
 
-            // 缩放到最大 200px
-            val maxDim = 200
+            // 缩放到最大 1080px 以保证在详情和大图模式下足够清晰
+            val maxDim = 1080
             val scale = minOf(maxDim.toFloat() / bitmap.width, maxDim.toFloat() / bitmap.height, 1f)
             val resized = if (scale < 1f) {
                 Bitmap.createScaledBitmap(bitmap, (bitmap.width * scale).toInt(), (bitmap.height * scale).toInt(), true)
@@ -122,7 +122,7 @@ class AiFoodAnalyzer(
             if (!dir.exists()) dir.mkdirs()
             val file = File(dir, "meal_${System.currentTimeMillis()}.jpg")
             val fos = FileOutputStream(file)
-            resized.compress(Bitmap.CompressFormat.JPEG, 60, fos)
+            resized.compress(Bitmap.CompressFormat.JPEG, 85, fos)
             fos.flush()
             fos.close()
             file.absolutePath

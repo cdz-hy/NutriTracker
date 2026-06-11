@@ -357,7 +357,7 @@ private fun MealIntakeCard(
                 .clickable { expanded = !expanded }
                 .animateContentSize(
                     animationSpec = spring(
-                        dampingRatio = Spring.DampingRatioLowBouncy,
+                        dampingRatio = Spring.DampingRatioNoBouncy,
                         stiffness = Spring.StiffnessMediumLow
                     )
                 )

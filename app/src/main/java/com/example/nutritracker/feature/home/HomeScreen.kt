@@ -184,15 +184,16 @@ fun HomeScreen(
             if (section != null && section.intakes.isNotEmpty()) {
                 val itemsStartIdx = animIdx
                 itemsIndexed(section.intakes, key = { _, intake -> "intake_${intake.id}" }) { index, intake ->
-                    StaggeredFadeIn(index = itemsStartIdx + index) {
-                        Box(modifier = Modifier.animateItem()) {
-                            MealIntakeItem(
-                                intake = intake,
-                                meal = section.meals[intake.mealId],
-                                onEdit = { onNavigateToEdit(section.meals[intake.mealId]?.id ?: 0, section.type.ordinal) },
-                                onDelete = { vm.deleteIntake(intake) }
-                            )
-                        }
+                    StaggeredFadeIn(
+                        modifier = Modifier.animateItem(),
+                        index = itemsStartIdx + index
+                    ) {
+                        MealIntakeItem(
+                            intake = intake,
+                            meal = section.meals[intake.mealId],
+                            onEdit = { onNavigateToEdit(section.meals[intake.mealId]?.id ?: 0, section.type.ordinal) },
+                            onDelete = { vm.deleteIntake(intake) }
+                        )
                     }
                 }
                 animIdx += section.intakes.size
@@ -212,13 +213,14 @@ fun HomeScreen(
         if (state.activities.isNotEmpty()) {
             val activityStartIdx = animIdx
             itemsIndexed(state.activities, key = { _, activity -> "activity_${activity.id}" }) { index, activity ->
-                StaggeredFadeIn(index = activityStartIdx + index) {
-                    Box(modifier = Modifier.animateItem()) {
-                        ActivityItem(
-                            activity = activity,
-                            onDelete = { vm.deleteActivity(activity) }
-                        )
-                    }
+                StaggeredFadeIn(
+                    modifier = Modifier.animateItem(),
+                    index = activityStartIdx + index
+                ) {
+                    ActivityItem(
+                        activity = activity,
+                        onDelete = { vm.deleteActivity(activity) }
+                    )
                 }
             }
             animIdx += state.activities.size

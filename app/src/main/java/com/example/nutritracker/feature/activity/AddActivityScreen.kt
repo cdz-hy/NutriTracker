@@ -161,7 +161,7 @@ fun AddActivityScreen(
                 var globalIdx = 0
                 grouped.forEach { (category, categoryActivities) ->
                     val headerIdx = globalIdx++
-                    item {
+                    item(key = "category_${category.name}") {
                         StaggeredFadeIn(index = headerIdx) {
                             Text(
                                 text = category.displayName,
@@ -174,14 +174,15 @@ fun AddActivityScreen(
                     }
                     val itemsStartIdx = globalIdx
                     itemsIndexed(categoryActivities, key = { _, act -> act.code }) { index, activity ->
-                        Box(modifier = Modifier.animateItem()) {
-                            StaggeredFadeIn(index = itemsStartIdx + index) {
-                                ActivityListItem(
-                                    activity = activity,
-                                    isSelected = selectedActivity?.code == activity.code,
-                                    onClick = { selectedActivity = activity }
-                                )
-                            }
+                        StaggeredFadeIn(
+                            modifier = Modifier.animateItem(),
+                            index = itemsStartIdx + index
+                        ) {
+                            ActivityListItem(
+                                activity = activity,
+                                isSelected = selectedActivity?.code == activity.code,
+                                onClick = { selectedActivity = activity }
+                            )
                         }
                     }
                     globalIdx += categoryActivities.size

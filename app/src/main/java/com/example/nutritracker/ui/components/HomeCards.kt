@@ -62,8 +62,8 @@ fun CalorieOverviewCard(
                 .padding(Dimens.CardInnerPadding)
                 .animateContentSize(
                     animationSpec = spring(
-                        dampingRatio = Spring.DampingRatioLowBouncy,
-                        stiffness = Spring.StiffnessLow
+                        dampingRatio = Spring.DampingRatioNoBouncy,
+                        stiffness = Spring.StiffnessMediumLow
                     )
                 ),
             verticalArrangement = Arrangement.spacedBy(16.dp)
@@ -538,8 +538,8 @@ fun MealSectionCard(
                 .padding(Dimens.CardInnerPaddingCompact)
                 .animateContentSize(
                     animationSpec = spring(
-                        dampingRatio = Spring.DampingRatioLowBouncy,
-                        stiffness = Spring.StiffnessLow
+                        dampingRatio = Spring.DampingRatioNoBouncy,
+                        stiffness = Spring.StiffnessMediumLow
                     )
                 ),
             verticalArrangement = Arrangement.spacedBy(8.dp)

@@ -181,50 +181,51 @@ fun WeightHistoryScreen(
                 }
 
                 itemsIndexed(weightLogs, key = { _, log -> log.date.toString() }) { index, log ->
-                    Box(modifier = Modifier.animateItem()) {
-                        StaggeredFadeIn(index = index) {
-                            ElevatedCard(
-                                modifier = Modifier.fillMaxWidth(),
-                                colors = CardDefaults.elevatedCardColors(
+                    StaggeredFadeIn(
+                        modifier = Modifier.animateItem(),
+                        index = index
+                    ) {
+                        ElevatedCard(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.elevatedCardColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+                            ),
+                            elevation = CardDefaults.elevatedCardElevation(defaultElevation = 0.5.dp)
+                        ) {
+                            ListItem(
+                                headlineContent = {
+                                    Text(
+                                        text = "%.1f kg".format(log.weightKg),
+                                        style = MaterialTheme.typography.bodyLarge,
+                                        fontWeight = FontWeight.Medium,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                },
+                                supportingContent = {
+                                    Text(
+                                        text = log.date.format(DateTimeFormatter.ISO_LOCAL_DATE),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                },
+                                trailingContent = {
+                                    IconButton(
+                                        onClick = { deleteConfirmDate = log.date },
+                                        modifier = Modifier.size(40.dp)
+                                    ) {
+                                        Icon(
+                                            Icons.Filled.Delete,
+                                            contentDescription = "删除",
+                                            tint = MaterialTheme.colorScheme.error,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    }
+                                },
+                                colors = ListItemDefaults.colors(
                                     containerColor = MaterialTheme.colorScheme.surfaceContainerLow
                                 ),
-                                elevation = CardDefaults.elevatedCardElevation(defaultElevation = 0.5.dp)
-                            ) {
-                                ListItem(
-                                    headlineContent = {
-                                        Text(
-                                            text = "%.1f kg".format(log.weightKg),
-                                            style = MaterialTheme.typography.bodyLarge,
-                                            fontWeight = FontWeight.Medium,
-                                            color = MaterialTheme.colorScheme.onSurface
-                                        )
-                                    },
-                                    supportingContent = {
-                                        Text(
-                                            text = log.date.format(DateTimeFormatter.ISO_LOCAL_DATE),
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                    },
-                                    trailingContent = {
-                                        IconButton(
-                                            onClick = { deleteConfirmDate = log.date },
-                                            modifier = Modifier.size(40.dp)
-                                        ) {
-                                            Icon(
-                                                Icons.Filled.Delete,
-                                                contentDescription = "删除",
-                                                tint = MaterialTheme.colorScheme.error,
-                                                modifier = Modifier.size(20.dp)
-                                            )
-                                        }
-                                    },
-                                    colors = ListItemDefaults.colors(
-                                        containerColor = MaterialTheme.colorScheme.surfaceContainerLow
-                                    ),
-                                    modifier = Modifier.fillMaxWidth()
-                                )
-                            }
+                                modifier = Modifier.fillMaxWidth()
+                            )
                         }
                     }
                 }

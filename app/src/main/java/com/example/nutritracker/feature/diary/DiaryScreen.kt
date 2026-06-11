@@ -25,7 +25,6 @@ import com.example.nutritracker.data.entity.IntakeType
 import com.example.nutritracker.feature.home.mealTypeIcon
 import com.example.nutritracker.feature.home.mealTypeLabel
 import com.example.nutritracker.ui.components.*
-import com.example.nutritracker.ui.components.FullScreenImageDialog
 import com.example.nutritracker.ui.theme.*
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
@@ -219,10 +218,11 @@ fun DiaryScreen(
                     val itemsStartIdx = sectionIdx
                     itemsIndexed(intakesForType, key = { _, it -> "diary_intake_${it.id}" }) { index, intake ->
                         val meal = state.meals[intake.mealId]
-                        StaggeredFadeIn(index = itemsStartIdx + index) {
-                            Box(modifier = Modifier.animateItem()) {
-                                DiaryIntakeCard(intake = intake, meal = meal)
-                            }
+                        StaggeredFadeIn(
+                            modifier = Modifier.animateItem(),
+                            index = itemsStartIdx + index
+                        ) {
+                            DiaryIntakeCard(intake = intake, meal = meal)
                         }
                     }
                     sectionIdx += intakesForType.size
@@ -241,50 +241,51 @@ fun DiaryScreen(
                 }
                 val activityStartIdx = sectionIdx
                 itemsIndexed(state.activities, key = { _, it -> "diary_activity_${it.id}" }) { index, activity ->
-                    StaggeredFadeIn(index = activityStartIdx + index) {
-                        Box(modifier = Modifier.animateItem()) {
-                            Card(
-                                modifier = Modifier.fillMaxWidth(),
-                                colors = CardDefaults.cardColors(
-                                    containerColor = MaterialTheme.colorScheme.surfaceContainerLow
-                                ),
-                                elevation = CardDefaults.cardElevation(defaultElevation = Dimens.CardElevationLow),
-                                shape = MaterialTheme.shapes.medium
-                            ) {
-                                ListItem(
-                                    headlineContent = {
-                                        Text(
-                                            text = activity.name,
-                                            style = MaterialTheme.typography.bodyLarge,
-                                            color = MaterialTheme.colorScheme.onSurface
-                                        )
-                                    },
-                                    supportingContent = {
-                                        Text(
-                                            text = "${activity.durationMinutes.roundToInt()}分钟 · ${activity.burnedKcal.roundToInt()} kcal",
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                    },
-                                    leadingContent = {
-                                        Icon(
-                                            Icons.Filled.LocalFireDepartment,
-                                            contentDescription = null,
-                                            tint = BurnColor,
-                                            modifier = Modifier.size(Dimens.IconSizeMedium)
-                                        )
-                                    },
-                                    colors = ListItemDefaults.colors(
-                                        containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+                    StaggeredFadeIn(
+                        modifier = Modifier.animateItem(),
+                        index = activityStartIdx + index
+                    ) {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+                            ),
+                            elevation = CardDefaults.cardElevation(defaultElevation = Dimens.CardElevationLow),
+                            shape = MaterialTheme.shapes.medium
+                        ) {
+                            ListItem(
+                                headlineContent = {
+                                    Text(
+                                        text = activity.name,
+                                        style = MaterialTheme.typography.bodyLarge,
+                                        color = MaterialTheme.colorScheme.onSurface
                                     )
+                                },
+                                supportingContent = {
+                                    Text(
+                                        text = "${activity.durationMinutes.roundToInt()}分钟 · ${activity.burnedKcal.roundToInt()} kcal",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                },
+                                leadingContent = {
+                                    Icon(
+                                        Icons.Filled.LocalFireDepartment,
+                                        contentDescription = null,
+                                        tint = BurnColor,
+                                        modifier = Modifier.size(Dimens.IconSizeMedium)
+                                    )
+                                },
+                                colors = ListItemDefaults.colors(
+                                    containerColor = MaterialTheme.colorScheme.surfaceContainerLow
                                 )
-                            }
+                            )
                         }
                     }
                 }
+            }
         }
     }
-}
 
     if (showDatePicker) {
         val datePickerState = rememberDatePickerState(

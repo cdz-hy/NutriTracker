@@ -197,10 +197,6 @@ fun MealEditScreen(
             NutrientField("碳水化合物 (g)", state.carbsStr, enabled = fieldsEnabled) { vm.updateCarbs(it) }
             NutrientField("脂肪 (g)", state.fatStr, enabled = fieldsEnabled) { vm.updateFat(it) }
             NutrientField("蛋白质 (g)", state.proteinStr, enabled = fieldsEnabled) { vm.updateProtein(it) }
-            NutrientField("糖 (g)", state.sugarsStr, enabled = !vm.isSaving) { vm.updateSugars(it) }
-            NutrientField("饱和脂肪 (g)", state.satFatStr, enabled = !vm.isSaving) { vm.updateSatFat(it) }
-            NutrientField("膳食纤维 (g)", state.fiberStr, enabled = !vm.isSaving) { vm.updateFiber(it) }
-            NutrientField("钠 (mg)", state.sodiumStr, enabled = !vm.isSaving) { vm.updateSodium(it) }
 
             HorizontalDivider(
                 color = MaterialTheme.colorScheme.outlineVariant,

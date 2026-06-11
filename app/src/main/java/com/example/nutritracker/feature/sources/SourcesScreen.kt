@@ -164,7 +164,10 @@ fun SourcesScreen(
             }
 
             itemsIndexed(entries) { index, entry ->
-                StaggeredFadeIn(index = index) {
+                StaggeredFadeIn(
+                    modifier = Modifier.animateItem(),
+                    index = index
+                ) {
                     SourceCard(
                         entry = entry,
                         onOpenUrl = { url ->
@@ -203,8 +206,8 @@ private fun SourceCard(
                 .padding(Dimens.CardInnerPadding)
                 .animateContentSize(
                     animationSpec = spring(
-                        dampingRatio = Spring.DampingRatioLowBouncy,
-                        stiffness = Spring.StiffnessLow
+                        dampingRatio = Spring.DampingRatioNoBouncy,
+                        stiffness = Spring.StiffnessMediumLow
                     )
                 ),
             verticalArrangement = Arrangement.spacedBy(8.dp)

@@ -4,7 +4,9 @@ import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.layout.Box
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import androidx.compose.ui.composed
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -85,29 +87,62 @@ val M3NavPopExitTransition: AnimatedContentTransitionScope<androidx.navigation.N
 // ══════════════════════════════════════════════════════════════════════════════
 
 /**
- * 列表交错入场动画
- * 每个子项延迟 baseDelayMs * index，最多受 cap 限制
+ * 列表交错入场动画 (MD3 Staggered Entrance)
+ *
+ * 首屏元素（index < maxIndexForDelay）会以交错延迟 + 淡入上滑的方式入场，
+ * 营造 MD3 标准的瀑布流视觉效果。
+ *
+ * 滚动时新出现的元素（index >= maxIndexForDelay）直接以极短的淡入呈现（50ms），
+ * 避免滚动时出现明显的"延迟浮现"感。
  */
 @Composable
 fun StaggeredFadeIn(
+    modifier: Modifier = Modifier,
     index: Int,
-    baseDelayMs: Int = 60,
-    maxDelayMs: Int = 500,
-    offsetY: Int = 40,
+    baseDelayMs: Int = 35,
+    maxIndexForDelay: Int = 10,
+    offsetY: Int = 30,
     content: @Composable () -> Unit
 ) {
-    var visible by remember { mutableStateOf(false) }
-    LaunchedEffect(index) {
-        delay((index.toLong() * baseDelayMs).coerceAtMost(maxDelayMs.toLong()))
-        visible = true
+    // 滚动时出现的元素：直接可见，无动画
+    if (index >= maxIndexForDelay) {
+        Box(modifier = modifier) {
+            content()
+        }
+        return
     }
-    AnimatedVisibility(
-        visible = visible,
-        enter = fadeIn(animationSpec = tween(M3Duration.Medium1, easing = M3Easing.Emphasized))
-            .plus(slideInVertically(
-                animationSpec = tween(M3Duration.Medium1, easing = M3Easing.Emphasized),
-                initialOffsetY = { offsetY }
-            ))
+
+    // 首屏元素：交错入场动画
+    val alpha = remember { Animatable(0f) }
+    val transY = remember { Animatable(offsetY.toFloat()) }
+
+    LaunchedEffect(Unit) {
+        delay(index.toLong() * baseDelayMs)
+        launch {
+            alpha.animateTo(
+                targetValue = 1f,
+                animationSpec = tween(
+                    durationMillis = M3Duration.Short3,  // 150ms — 轻快入场
+                    easing = M3Easing.Decelerate
+                )
+            )
+        }
+        launch {
+            transY.animateTo(
+                targetValue = 0f,
+                animationSpec = tween(
+                    durationMillis = M3Duration.Medium1,  // 250ms — 位移略慢于透明度
+                    easing = M3Easing.Emphasized
+                )
+            )
+        }
+    }
+
+    Box(
+        modifier = modifier.graphicsLayer {
+            this.alpha = alpha.value
+            this.translationY = transY.value
+        }
     ) {
         content()
     }

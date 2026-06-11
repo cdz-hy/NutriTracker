@@ -2,6 +2,17 @@
 
 一款基于 AI 拍照识别的智能营养与卡路里追踪 Android 应用。帮助用户管理每日饮食、运动和健康目标。
 
+## 截图
+
+<div align="center">
+<img src="images/home.jpg" width="240">&nbsp;&nbsp;
+<img src="images/diary.jpg" width="240">&nbsp;&nbsp;
+<img src="images/meal-detail.jpg" width="240">
+<br><br>
+<img src="images/profile.jpg" width="240">&nbsp;&nbsp;
+<img src="images/settings.jpg" width="240">
+</div>
+
 ## 功能特性
 
 **AI 食物识别**
@@ -110,6 +121,10 @@ app/src/main/java/com/example/nutritracker/
 - `CAMERA` - 拍照识别
 - `READ_MEDIA_IMAGES` - 访问相册图片
 
+## 致谢
+
+本项目的灵感和部分程序思路来源于 [OpenNutriTracker](https://github.com/simonoppowa/OpenNutriTracker)，在此基础上进行了重构，打造了一个轻量化的纯 Android 原生版本。
+
 ## 许可证
 
-本项目仅供学习和个人使用。
+本项目基于 [GNU General Public License v3.0](LICENSE) 开源。
