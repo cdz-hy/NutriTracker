@@ -36,6 +36,8 @@ class IntakeRepository(
     suspend fun deleteById(id: Long) = dao.deleteById(id)
     suspend fun getById(id: Long): Intake? = dao.getById(id)
     suspend fun getByMealId(mealId: Long): Intake? = dao.getByMealId(mealId)
+    suspend fun getByMealIdAll(mealId: Long): List<Intake> = dao.getByDateTimeRange(java.time.LocalDateTime.MIN, java.time.LocalDateTime.MAX)
+    suspend fun getAll(): List<Intake> = dao.getByDateTimeRange(java.time.LocalDateTime.MIN, java.time.LocalDateTime.MAX)
     suspend fun getRecent(limit: Int = 20): List<Intake> = dao.getRecent(limit)
 
     suspend fun getByLogicalDay(date: LocalDate, offsetMinutes: Int = 0): List<Intake> {
@@ -56,6 +58,7 @@ class TrackedDayRepository(private val dao: TrackedDayDao) {
     suspend fun getByDateRange(start: LocalDate, end: LocalDate): List<TrackedDay> = dao.getByDateRange(start, end)
     fun getByDateRangeFlow(start: LocalDate, end: LocalDate): Flow<List<TrackedDay>> = dao.getByDateRangeFlow(start, end)
     suspend fun upsert(day: TrackedDay) = dao.upsert(day)
+    suspend fun getAll(): List<TrackedDay> = dao.getByDateRange(java.time.LocalDate.MIN, java.time.LocalDate.MAX)
     suspend fun getLatest(): TrackedDay? = dao.getLatest()
 
     suspend fun ensureDay(date: LocalDate, calorieGoal: Double, carbGoal: Double, fatGoal: Double, proteinGoal: Double): TrackedDay {
@@ -132,6 +135,7 @@ class ActivityRepository(
     suspend fun upsert(activity: UserActivityEntity): Long = dao.upsert(activity)
     suspend fun delete(activity: UserActivityEntity) = dao.delete(activity)
     suspend fun deleteById(id: Long) = dao.deleteById(id)
+    suspend fun getAll(): List<UserActivityEntity> = dao.getByDateTimeRange(java.time.LocalDateTime.MIN, java.time.LocalDateTime.MAX)
     suspend fun getRecent(limit: Int = 20): List<UserActivityEntity> = dao.getRecent(limit)
 
     suspend fun getByLogicalDay(date: LocalDate, offsetMinutes: Int = 0): List<UserActivityEntity> {
@@ -161,6 +165,7 @@ class WaterIntakeRepository(
 ) {
     suspend fun upsert(entry: WaterIntake): Long = dao.upsert(entry)
     suspend fun deleteById(id: Long) = dao.deleteById(id)
+    suspend fun getAll(): List<WaterIntake> = dao.getByDateTimeRange(java.time.LocalDateTime.MIN, java.time.LocalDateTime.MAX)
     suspend fun getLatest(): WaterIntake? = dao.getLatest()
 
     suspend fun getByLogicalDay(date: LocalDate, offsetMinutes: Int = 0): List<WaterIntake> {

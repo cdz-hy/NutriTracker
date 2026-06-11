@@ -2,6 +2,8 @@ package com.example.nutritracker.feature.settings
 
 import android.content.Intent
 import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -26,6 +28,8 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.nutritracker.ui.theme.Dimens
 import com.example.nutritracker.ui.theme.SuccessColor
+import java.time.LocalDateTime
+import java.time.format.DateTimeFormatter
 import kotlin.math.roundToInt
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -37,6 +41,21 @@ fun SettingsScreen(
     val state by vm.state.collectAsStateWithLifecycle()
     var showMacroDialog by remember { mutableStateOf(false) }
     var showAiDialog by remember { mutableStateOf(false) }
+
+    val exportStatus by vm.exportStatus.collectAsStateWithLifecycle()
+    val importStatus by vm.importStatus.collectAsStateWithLifecycle()
+
+    val exportLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/zip")
+    ) { uri: Uri? ->
+        uri?.let { vm.exportData(it) }
+    }
+
+    val importLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri: Uri? ->
+        uri?.let { vm.importData(it) }
+    }
 
     Column(
         modifier = Modifier
@@ -327,6 +346,138 @@ fun SettingsScreen(
                         )
                     ) {
                         Text("配置")
+                    }
+                },
+                colors = ListItemDefaults.colors(
+                    containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+                ),
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        HorizontalDivider(
+            color = MaterialTheme.colorScheme.outlineVariant
+        )
+
+        // Data management section
+        SectionTitle(icon = Icons.Filled.Sync, title = "数据管理")
+
+        // Export
+        ElevatedCard(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.elevatedCardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+            ),
+            elevation = CardDefaults.elevatedCardElevation(defaultElevation = 1.dp)
+        ) {
+            ListItem(
+                headlineContent = {
+                    Text(
+                        text = "导出数据",
+                        style = MaterialTheme.typography.bodyLarge,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                },
+                supportingContent = {
+                    Column {
+                        Text(
+                            text = "导出所有饮食记录、设置和图片到 ZIP 文件",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        val (status, msg) = exportStatus
+                        if (status != ExportImportStatus.IDLE) {
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = msg,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = when (status) {
+                                    ExportImportStatus.SUCCESS -> SuccessColor
+                                    ExportImportStatus.FAILURE -> MaterialTheme.colorScheme.error
+                                    else -> MaterialTheme.colorScheme.onSurfaceVariant
+                                }
+                            )
+                        }
+                    }
+                },
+                trailingContent = {
+                    if (exportStatus.first == ExportImportStatus.RUNNING) {
+                        CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                    } else {
+                        TextButton(
+                            onClick = {
+                                val dateStr = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"))
+                                exportLauncher.launch("NutriTracker_$dateStr.zip")
+                            },
+                            colors = ButtonDefaults.textButtonColors(
+                                contentColor = MaterialTheme.colorScheme.primary
+                            )
+                        ) {
+                            Text("导出")
+                        }
+                    }
+                },
+                colors = ListItemDefaults.colors(
+                    containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+                ),
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+
+        // Import
+        ElevatedCard(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.elevatedCardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+            ),
+            elevation = CardDefaults.elevatedCardElevation(defaultElevation = 1.dp)
+        ) {
+            ListItem(
+                headlineContent = {
+                    Text(
+                        text = "导入数据",
+                        style = MaterialTheme.typography.bodyLarge,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                },
+                supportingContent = {
+                    Column {
+                        Text(
+                            text = "从 ZIP 文件导入数据，重复数据将自动跳过",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        val (status, msg) = importStatus
+                        if (status != ExportImportStatus.IDLE) {
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = msg,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = when (status) {
+                                    ExportImportStatus.SUCCESS -> SuccessColor
+                                    ExportImportStatus.FAILURE -> MaterialTheme.colorScheme.error
+                                    else -> MaterialTheme.colorScheme.onSurfaceVariant
+                                }
+                            )
+                        }
+                    }
+                },
+                trailingContent = {
+                    if (importStatus.first == ExportImportStatus.RUNNING) {
+                        CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                    } else {
+                        TextButton(
+                            onClick = { importLauncher.launch(arrayOf("application/zip")) },
+                            colors = ButtonDefaults.textButtonColors(
+                                contentColor = MaterialTheme.colorScheme.primary
+                            )
+                        ) {
+                            Text("导入")
+                        }
                     }
                 },
                 colors = ListItemDefaults.colors(

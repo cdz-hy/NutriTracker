@@ -1,7 +1,11 @@
 package com.example.nutritracker.feature.settings
 
-import androidx.lifecycle.ViewModel
+import android.app.Application
+import android.net.Uri
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.nutritracker.data.DataExportManager
+import com.example.nutritracker.data.ImportResult
 import com.example.nutritracker.data.repository.SettingsRepository
 import com.google.gson.Gson
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -18,6 +22,8 @@ import javax.inject.Inject
 
 enum class TestStatus { IDLE, TESTING, SUCCESS, FAILURE }
 
+enum class ExportImportStatus { IDLE, RUNNING, SUCCESS, FAILURE }
+
 data class SettingsState(
     val dayBoundaryStr: String = "0",
     val kcalAdjStr: String = "0",
@@ -29,13 +35,19 @@ data class SettingsState(
     val aiBaseUrl: String = "",
     val aiModel: String = "",
     val testStatus: TestStatus = TestStatus.IDLE,
-    val testMessage: String = ""
+    val testMessage: String = "",
+    val exportStatus: ExportImportStatus = ExportImportStatus.IDLE,
+    val exportMessage: String = "",
+    val importStatus: ExportImportStatus = ExportImportStatus.IDLE,
+    val importMessage: String = ""
 )
 
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
-    private val settingsRepo: SettingsRepository
-) : ViewModel() {
+    application: Application,
+    private val settingsRepo: SettingsRepository,
+    private val exportManager: DataExportManager
+) : AndroidViewModel(application) {
 
     private data class CalcValues(val dayBnd: Int, val kcalAdj: Double, val carb: Double, val fat: Double, val protein: Double)
     private data class AiValues(val water: Int, val aiKey: String, val aiUrl: String, val aiModel: String)
@@ -226,4 +238,50 @@ class SettingsViewModel @Inject constructor(
     fun resetTestState() {
         _testState.value = TestStatus.IDLE to ""
     }
+
+    // ── 导出导入 ──────────────────────────────────────────────────────────────
+
+    private val _exportStatus = MutableStateFlow(ExportImportStatus.IDLE to "")
+    val exportStatus: StateFlow<Pair<ExportImportStatus, String>> = _exportStatus.asStateFlow()
+
+    private val _importStatus = MutableStateFlow(ExportImportStatus.IDLE to "")
+    val importStatus: StateFlow<Pair<ExportImportStatus, String>> = _importStatus.asStateFlow()
+
+    fun exportData(uri: Uri) {
+        viewModelScope.launch {
+            _exportStatus.value = ExportImportStatus.RUNNING to "正在导出..."
+            val result = exportManager.exportData(uri)
+            _exportStatus.value = if (result.isSuccess) {
+                ExportImportStatus.SUCCESS to "导出成功"
+            } else {
+                ExportImportStatus.FAILURE to "导出失败: ${result.exceptionOrNull()?.message}"
+            }
+        }
+    }
+
+    fun importData(uri: Uri) {
+        viewModelScope.launch {
+            _importStatus.value = ExportImportStatus.RUNNING to "正在导入..."
+            val result = exportManager.importData(uri)
+            _importStatus.value = if (result.isSuccess) {
+                val r = result.getOrNull()!!
+                val msg = buildString {
+                    append("导入完成: ")
+                    append("食物 ${r.mealsImported} 条${if (r.mealsSkipped > 0) " (跳过 ${r.mealsSkipped} 条重复)" else ""}")
+                    append(", 饮食记录 ${r.intakesImported} 条")
+                    append(", 活动 ${r.activitiesImported} 条")
+                    if (r.trackedDaysImported > 0) append(", 追踪日 ${r.trackedDaysImported} 条")
+                    if (r.weightLogsImported > 0) append(", 体重 ${r.weightLogsImported} 条")
+                    if (r.waterIntakesImported > 0) append(", 饮水 ${r.waterIntakesImported} 条")
+                    if (r.imagesImported > 0) append(", 图片 ${r.imagesImported} 张")
+                }
+                ExportImportStatus.SUCCESS to msg
+            } else {
+                ExportImportStatus.FAILURE to "导入失败: ${result.exceptionOrNull()?.message}"
+            }
+        }
+    }
+
+    fun resetExportStatus() { _exportStatus.value = ExportImportStatus.IDLE to "" }
+    fun resetImportStatus() { _importStatus.value = ExportImportStatus.IDLE to "" }
 }
