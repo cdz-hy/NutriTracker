@@ -16,11 +16,14 @@ android {
     // 从 version.properties 读取版本号
     fun loadVersionProps(): Map<String, String> {
         val props = mutableMapOf<String, String>()
-        rootProject.file("version.properties").forEachLine { line ->
-            val trimmed = line.trim()
-            if (!trimmed.startsWith("#") && trimmed.contains("=")) {
-                val (key, value) = trimmed.split("=", limit = 2)
-                props[key.trim()] = value.trim()
+        val versionFile = rootProject.file("version.properties")
+        if (versionFile.exists()) {
+            versionFile.forEachLine { line ->
+                val trimmed = line.trim()
+                if (!trimmed.startsWith("#") && trimmed.contains("=")) {
+                    val (key, value) = trimmed.split("=", limit = 2)
+                    props[key.trim()] = value.trim()
+                }
             }
         }
         return props
@@ -54,6 +57,10 @@ android {
     }
     buildFeatures {
         compose = true
+    }
+
+    ksp {
+        arg("room.schemaLocation", "$projectDir/schemas")
     }
 
     @Suppress("DEPRECATION")
@@ -112,7 +119,13 @@ dependencies {
     implementation(libs.coil.compose)
     implementation("com.github.SmartToolFactory:Compose-Cropper:0.5.0")
 
+    // WorkManager & Glance Widget
+    implementation(libs.androidx.work.runtime.ktx)
+    implementation(libs.androidx.glance.appwidget)
+    implementation(libs.androidx.glance.material3)
+
     testImplementation(libs.junit)
+    testImplementation(libs.kotlinx.coroutines.test)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(platform(libs.androidx.compose.bom))

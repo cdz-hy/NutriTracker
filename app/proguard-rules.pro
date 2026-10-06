@@ -1,21 +1,29 @@
-# Add project specific ProGuard rules here.
-# You can control the set of applied configuration files using the
-# proguardFiles setting in build.gradle.
-#
-# For more details, see
-#   http://developer.android.com/guide/developing/tools/proguard.html
+# Preserve line numbers for crash stack traces
+-keepattributes SourceFile,LineNumberTable
+-renamesourcefileattribute SourceFile
 
-# If your project uses WebView with JS, uncomment the following
-# and specify the fully qualified class name to the JavaScript interface
-# class:
-#-keepclassmembers class fqcn.of.javascript.interface.for.webview {
-#   public *;
-#}
+# Gson generic type signatures & annotations
+-keepattributes Signature
+-keepattributes *Annotation*
 
-# Uncomment this to preserve the line number information for
-# debugging stack traces.
-#-keepattributes SourceFile,LineNumberTable
+# Keep AI & Export data transfer classes and database entities from R8 field obfuscation
+-keep class com.example.nutritracker.feature.camera.NutritionResult { *; }
+-keep class com.example.nutritracker.feature.camera.NutritionResult$* { *; }
+-keep class com.example.nutritracker.data.ExportBundle { *; }
+-keep class com.example.nutritracker.data.ExportBundle$* { *; }
+-keep class com.example.nutritracker.data.entity.** { *; }
 
-# If you keep the line number information, uncomment this to
-# hide the original source file name.
-#-renamesourcefileattribute SourceFile
+# Keep @SerializedName fields
+-keepclassmembers class * {
+    @com.google.gson.annotations.SerializedName <fields>;
+}
+
+# Enum values used by Gson / Room / DataStore
+-keepclassmembers enum com.example.nutritracker.** {
+    public static **[] values();
+    public static ** valueOf(java.lang.String);
+}
+
+# OkHttp
+-dontwarn okhttp3.**
+-dontwarn okio.**
