@@ -38,7 +38,7 @@ object PhysicalActivityDatabase {
         PhysicalActivity("02020", "徒手健身", "高强度（俯卧撑、仰卧起坐、引体向上）", 7.5, ActivityCategory.CONDITIONING),
         PhysicalActivity("02050", "力量训练", "哑铃、杠铃、器械", 6.0, ActivityCategory.CONDITIONING),
         PhysicalActivity("02055", "力量训练", "高强度，力量举或健美", 6.0, ActivityCategory.CONDITIONING),
-        PhysicalActivity("02068", "跳绳", "一般", 12.3, ActivityCategory.CONDITIONING),
+        PhysicalActivity("02068", "跳绳", "快速/高强度", 12.3, ActivityCategory.CONDITIONING),
         PhysicalActivity("02080", "划船机", "中等强度", 7.0, ActivityCategory.CONDITIONING),
         PhysicalActivity("02090", "椭圆机", "中等强度", 5.0, ActivityCategory.CONDITIONING),
         PhysicalActivity("02095", "楼梯机", "一般", 9.0, ActivityCategory.CONDITIONING),
@@ -67,17 +67,15 @@ object PhysicalActivityDatabase {
         PhysicalActivity("15100", "拳击", "比赛", 12.8, ActivityCategory.SPORT),
         PhysicalActivity("15110", "拳击", "沙袋训练", 5.5, ActivityCategory.SPORT),
         PhysicalActivity("15230", "足球", "一般", 8.0, ActivityCategory.SPORT),
+        PhysicalActivity("15610", "足球", "休闲", 7.0, ActivityCategory.SPORT),
         PhysicalActivity("15255", "高尔夫", "一般", 4.8, ActivityCategory.SPORT),
         PhysicalActivity("15320", "手球", "一般", 12.0, ActivityCategory.SPORT),
         PhysicalActivity("15360", "冰球", "一般", 8.0, ActivityCategory.SPORT),
         PhysicalActivity("15425", "武术", "慢速", 5.3, ActivityCategory.SPORT),
         PhysicalActivity("15430", "武术", "中等速度（柔道、空手道、跆拳道）", 10.3, ActivityCategory.SPORT),
-        PhysicalActivity("15530", "壁球", "一般", 7.0, ActivityCategory.SPORT),
-        PhysicalActivity("15551", "跳绳", "中等速度", 11.8, ActivityCategory.SPORT),
-        PhysicalActivity("15560", "橄榄球", "竞技", 8.3, ActivityCategory.SPORT),
-        PhysicalActivity("15610", "足球", "休闲", 7.0, ActivityCategory.SPORT),
-        PhysicalActivity("15620", "棒球/垒球", "一般", 5.0, ActivityCategory.SPORT),
         PhysicalActivity("15652", "壁球", "一般", 7.3, ActivityCategory.SPORT),
+        PhysicalActivity("15560", "橄榄球", "竞技", 8.3, ActivityCategory.SPORT),
+        PhysicalActivity("15620", "棒球/垒球", "一般", 5.0, ActivityCategory.SPORT),
         PhysicalActivity("15660", "乒乓球", "一般", 4.0, ActivityCategory.SPORT),
         PhysicalActivity("15670", "太极拳/气功", "一般", 3.5, ActivityCategory.SPORT),
         PhysicalActivity("15675", "网球", "一般", 7.3, ActivityCategory.SPORT),
@@ -100,24 +98,15 @@ object PhysicalActivityDatabase {
         PhysicalActivity("15592", "轮滑鞋", "休闲速度", 7.5, ActivityCategory.OTHER),
         PhysicalActivity("19030", "滑冰", "一般", 7.0, ActivityCategory.OTHER),
         PhysicalActivity("19075", "滑雪", "一般", 7.0, ActivityCategory.OTHER),
-        PhysicalActivity("19080", "越野滑雪", "一般", 7.0, ActivityCategory.OTHER),
-        PhysicalActivity("99999", "自定义活动", "手动输入卡路里", 0.0, ActivityCategory.OTHER)
+        PhysicalActivity("19080", "越野滑雪", "一般", 7.0, ActivityCategory.OTHER)
     )
 
-    fun getActivitiesByCategory(): Map<ActivityCategory, List<PhysicalActivity>> =
-        getAllActivities().groupBy { it.category }
-
     fun searchActivities(query: String): List<PhysicalActivity> {
-        if (query.isBlank()) return getAllActivities().filter { it.code != "99999" }
+        if (query.isBlank()) return getAllActivities()
         return getAllActivities().filter {
-            it.code != "99999" && (
-                it.name.contains(query, ignoreCase = true) ||
+            it.name.contains(query, ignoreCase = true) ||
                 it.description.contains(query, ignoreCase = true) ||
                 it.category.displayName.contains(query, ignoreCase = true)
-            )
         }
     }
-
-    fun getActivityByCode(code: String): PhysicalActivity? =
-        getAllActivities().find { it.code == code }
 }
