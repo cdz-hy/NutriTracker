@@ -18,7 +18,9 @@ enum class WeightGoal { LOSE, MAINTAIN, GAIN }
 
 enum class IntakeType { BREAKFAST, LUNCH, DINNER, SNACK }
 
-enum class MealSource { CUSTOM, AI_ANALYSIS, MANUAL }
+enum class MealSource { CUSTOM, AI_ANALYSIS, MANUAL, RECIPE }
+
+enum class ThemeMode { SYSTEM, LIGHT, DARK }
 
 // ── User ─────────────────────────────────────────────────────────────────────
 
@@ -44,9 +46,6 @@ data class User(
 data class Meal(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val name: String,
-    val brands: String? = null,
-    val barcode: String? = null,
-    val imageUrl: String? = null,
     val localImagePath: String? = null,
     val source: MealSource = MealSource.MANUAL,
     // Nutriments per 100g
@@ -57,11 +56,13 @@ data class Meal(
     val sugars100: Double? = null,
     val saturatedFat100: Double? = null,
     val fiber100: Double? = null,
-    val sodium100: Double? = null,
-    val cholesterol100: Double? = null,
-    val servingSize: String? = null,
-    val servingQuantityG: Double? = null,
-    val foodItemsJson: String? = null  // AI分析的子食物项JSON，如 [{"name":"番茄炒蛋","weight_g":200,...}]
+    val sodium100: Double? = null,       // mg per 100g
+    val cholesterol100: Double? = null,  // mg per 100g
+    val portionLabel: String? = null,
+    val portionGrams: Double? = null,
+    val isFavorite: Boolean = false,
+    val isArchived: Boolean = false,
+    val foodItemsJson: String? = null
 )
 
 // ── Intake ───────────────────────────────────────────────────────────────────
@@ -80,9 +81,45 @@ data class Intake(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val mealId: Long,
     val intakeType: IntakeType,
-    val amount: Double,       // in grams
+    val amount: Double, // in grams
     val unit: String = "g",
     val dateTime: LocalDateTime
+)
+
+// ── Recipe & Ingredients ─────────────────────────────────────────────────────
+
+@Entity(tableName = "recipes")
+data class Recipe(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val name: String,
+    val description: String = "",
+    val defaultServings: Double = 1.0,
+    val createdAt: LocalDateTime = LocalDateTime.now()
+)
+
+@Entity(
+    tableName = "recipe_ingredients",
+    foreignKeys = [
+        ForeignKey(
+            entity = Recipe::class,
+            parentColumns = ["id"],
+            childColumns = ["recipeId"],
+            onDelete = ForeignKey.CASCADE
+        ),
+        ForeignKey(
+            entity = Meal::class,
+            parentColumns = ["id"],
+            childColumns = ["mealId"],
+            onDelete = ForeignKey.CASCADE
+        )
+    ],
+    indices = [Index("recipeId"), Index("mealId")]
+)
+data class RecipeIngredient(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val recipeId: Long,
+    val mealId: Long,
+    val amountGrams: Double
 )
 
 // ── TrackedDay ───────────────────────────────────────────────────────────────

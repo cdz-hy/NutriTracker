@@ -1,6 +1,7 @@
 package com.example.nutritracker.di
 
 import android.content.Context
+import com.example.nutritracker.data.AppDatabase
 import com.example.nutritracker.data.DataExportManager
 import com.example.nutritracker.data.dao.*
 import com.example.nutritracker.data.repository.*
@@ -17,13 +18,19 @@ import javax.inject.Singleton
 object RepositoryModule {
 
     @Provides @Singleton
+    fun provideTransactionRunner(db: AppDatabase): DatabaseTransactionRunner = RoomTransactionRunner(db)
+
+    @Provides @Singleton
     fun provideUserRepository(dao: UserDao) = UserRepository(dao)
 
     @Provides @Singleton
-    fun provideMealRepository(dao: MealDao) = MealRepository(dao)
+    fun provideMealRepository(dao: MealDao, intakeDao: IntakeDao) = MealRepository(dao, intakeDao)
 
     @Provides @Singleton
     fun provideIntakeRepository(dao: IntakeDao, dbc: DayBoundaryCalc) = IntakeRepository(dao, dbc)
+
+    @Provides @Singleton
+    fun provideRecipeRepository(dao: RecipeDao, txRunner: DatabaseTransactionRunner) = RecipeRepository(dao, txRunner)
 
     @Provides @Singleton
     fun provideTrackedDayRepository(dao: TrackedDayDao) = TrackedDayRepository(dao)
@@ -42,11 +49,16 @@ object RepositoryModule {
         @ApplicationContext context: Context,
         mealRepo: MealRepository,
         intakeRepo: IntakeRepository,
+        recipeRepo: RecipeRepository,
         trackedDayRepo: TrackedDayRepository,
         activityRepo: ActivityRepository,
         weightLogRepo: WeightLogRepository,
         waterRepo: WaterIntakeRepository,
         userRepo: UserRepository,
-        settingsRepo: SettingsRepository
-    ) = DataExportManager(context, mealRepo, intakeRepo, trackedDayRepo, activityRepo, weightLogRepo, waterRepo, userRepo, settingsRepo)
+        settingsRepo: SettingsRepository,
+        txRunner: DatabaseTransactionRunner
+    ) = DataExportManager(
+        context, mealRepo, intakeRepo, recipeRepo, trackedDayRepo,
+        activityRepo, weightLogRepo, waterRepo, userRepo, settingsRepo, txRunner
+    )
 }
