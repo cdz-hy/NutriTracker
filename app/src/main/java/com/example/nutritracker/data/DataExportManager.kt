@@ -7,6 +7,7 @@ import com.example.nutritracker.data.repository.*
 import com.google.gson.Gson
 import com.google.gson.GsonBuilder
 import com.google.gson.TypeAdapter
+import com.google.gson.annotations.SerializedName
 import com.google.gson.stream.JsonReader
 import com.google.gson.stream.JsonWriter
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -14,6 +15,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.io.IOException
+import java.io.InputStream
+import java.io.OutputStream
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
@@ -23,23 +27,135 @@ import java.util.zip.ZipOutputStream
 import javax.inject.Inject
 import javax.inject.Singleton
 
-data class ExportData(
-    val version: Int = 1,
-    val exportedAt: String = LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME),
-    val settings: Map<String, Any> = emptyMap(),
-    val meals: List<Meal> = emptyList(),
-    val intakes: List<Intake> = emptyList(),
-    val trackedDays: List<TrackedDay> = emptyList(),
-    val activities: List<UserActivityEntity> = emptyList(),
-    val weightLogs: List<WeightLog> = emptyList(),
-    val waterIntakes: List<WaterIntake> = emptyList(),
-    val user: User? = null
-)
+data class ExportBundle(
+    @SerializedName("version") val version: Int = 2,
+    @SerializedName("exportedAt") val exportedAt: String = LocalDateTime.now().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME),
+    @SerializedName("settings") val settings: ExportSettings? = null,
+    @SerializedName("meals") val meals: List<ExportMeal> = emptyList(),
+    @SerializedName("intakes") val intakes: List<ExportIntake> = emptyList(),
+    @SerializedName("recipes") val recipes: List<ExportRecipe> = emptyList(),
+    @SerializedName("recipeIngredients") val recipeIngredients: List<ExportRecipeIngredient> = emptyList(),
+    @SerializedName("trackedDays") val trackedDays: List<ExportTrackedDay> = emptyList(),
+    @SerializedName("activities") val activities: List<ExportActivity> = emptyList(),
+    @SerializedName("weightLogs") val weightLogs: List<ExportWeightLog> = emptyList(),
+    @SerializedName("waterIntakes") val waterIntakes: List<ExportWaterIntake> = emptyList(),
+    @SerializedName("user") val user: ExportUser? = null
+) {
+    data class ExportSettings(
+        @SerializedName("dayBoundaryMinutes") val dayBoundaryMinutes: Int? = null,
+        @SerializedName("kcalAdjustment") val kcalAdjustment: Double? = null,
+        @SerializedName("carbPct") val carbPct: Double? = null,
+        @SerializedName("fatPct") val fatPct: Double? = null,
+        @SerializedName("proteinPct") val proteinPct: Double? = null,
+        @SerializedName("waterGoalMl") val waterGoalMl: Int? = null,
+        @SerializedName("waterQuickAmounts") val waterQuickAmounts: List<Int>? = null,
+        @SerializedName("onboardingDone") val onboardingDone: Boolean? = null,
+        @SerializedName("themeMode") val themeMode: String? = null,
+        @SerializedName("dynamicColorEnabled") val dynamicColorEnabled: Boolean? = null,
+        @SerializedName("useKj") val useKj: Boolean? = null,
+        @SerializedName("aiAutoConfirm") val aiAutoConfirm: Boolean? = null
+    )
+
+    data class ExportMeal(
+        @SerializedName("id") val id: Long = 0,
+        @SerializedName("name") val name: String = "",
+        @SerializedName("localImagePath") val localImagePath: String? = null,
+        @SerializedName("source") val source: String = MealSource.MANUAL.name,
+        @SerializedName("energyKcal100") val energyKcal100: Double = 0.0,
+        @SerializedName("carbohydrates100") val carbohydrates100: Double = 0.0,
+        @SerializedName("fat100") val fat100: Double = 0.0,
+        @SerializedName("proteins100") val proteins100: Double = 0.0,
+        @SerializedName("sugars100") val sugars100: Double? = null,
+        @SerializedName("saturatedFat100") val saturatedFat100: Double? = null,
+        @SerializedName("fiber100") val fiber100: Double? = null,
+        @SerializedName("sodium100") val sodium100: Double? = null,
+        @SerializedName("cholesterol100") val cholesterol100: Double? = null,
+        @SerializedName("portionLabel") val portionLabel: String? = null,
+        @SerializedName("portionGrams") val portionGrams: Double? = null,
+        @SerializedName("isFavorite") val isFavorite: Boolean = false,
+        @SerializedName("isArchived") val isArchived: Boolean = false,
+        @SerializedName("foodItemsJson") val foodItemsJson: String? = null
+    )
+
+    data class ExportIntake(
+        @SerializedName("id") val id: Long = 0,
+        @SerializedName("mealId") val mealId: Long = 0,
+        @SerializedName("intakeType") val intakeType: String = IntakeType.BREAKFAST.name,
+        @SerializedName("amount") val amount: Double = 0.0,
+        @SerializedName("unit") val unit: String = "g",
+        @SerializedName("dateTime") val dateTime: String = ""
+    )
+
+    data class ExportRecipe(
+        @SerializedName("id") val id: Long = 0,
+        @SerializedName("name") val name: String = "",
+        @SerializedName("description") val description: String = "",
+        @SerializedName("defaultServings") val defaultServings: Double = 1.0,
+        @SerializedName("createdAt") val createdAt: String = ""
+    )
+
+    data class ExportRecipeIngredient(
+        @SerializedName("id") val id: Long = 0,
+        @SerializedName("recipeId") val recipeId: Long = 0,
+        @SerializedName("mealId") val mealId: Long = 0,
+        @SerializedName("amountGrams") val amountGrams: Double = 0.0
+    )
+
+    data class ExportTrackedDay(
+        @SerializedName("date") val date: String = "",
+        @SerializedName("calorieGoal") val calorieGoal: Double = 0.0,
+        @SerializedName("caloriesTracked") val caloriesTracked: Double = 0.0,
+        @SerializedName("carbsGoal") val carbsGoal: Double? = null,
+        @SerializedName("carbsTracked") val carbsTracked: Double? = null,
+        @SerializedName("fatGoal") val fatGoal: Double? = null,
+        @SerializedName("fatTracked") val fatTracked: Double? = null,
+        @SerializedName("proteinGoal") val proteinGoal: Double? = null,
+        @SerializedName("proteinTracked") val proteinTracked: Double? = null
+    )
+
+    data class ExportActivity(
+        @SerializedName("id") val id: Long = 0,
+        @SerializedName("name") val name: String = "",
+        @SerializedName("mets") val mets: Double = 0.0,
+        @SerializedName("durationMinutes") val durationMinutes: Double = 0.0,
+        @SerializedName("burnedKcal") val burnedKcal: Double = 0.0,
+        @SerializedName("dateTime") val dateTime: String = "",
+        @SerializedName("isCustom") val isCustom: Boolean = false,
+        @SerializedName("category") val category: String? = null
+    )
+
+    data class ExportWeightLog(
+        @SerializedName("date") val date: String = "",
+        @SerializedName("weightKg") val weightKg: Double = 0.0
+    )
+
+    data class ExportWaterIntake(
+        @SerializedName("id") val id: Long = 0,
+        @SerializedName("amountMl") val amountMl: Int = 0,
+        @SerializedName("dateTime") val dateTime: String = ""
+    )
+
+    data class ExportUser(
+        @SerializedName("id") val id: Int = 1,
+        @SerializedName("birthday") val birthday: String = "",
+        @SerializedName("heightCm") val heightCm: Double = 170.0,
+        @SerializedName("weightKg") val weightKg: Double = 70.0,
+        @SerializedName("gender") val gender: String = Gender.MALE.name,
+        @SerializedName("activityLevel") val activityLevel: String = ActivityLevel.SEDENTARY.name,
+        @SerializedName("weightGoal") val weightGoal: String = WeightGoal.MAINTAIN.name,
+        @SerializedName("caloriesProfile") val caloriesProfile: String = CaloriesProfile.AVERAGED.name,
+        @SerializedName("weeklyWeightGoalKg") val weeklyWeightGoalKg: Double? = null,
+        @SerializedName("targetWeightKg") val targetWeightKg: Double? = null,
+        @SerializedName("caloriesTaperEnabled") val caloriesTaperEnabled: Boolean = false,
+        @SerializedName("usesImperialUnits") val usesImperialUnits: Boolean = false
+    )
+}
 
 data class ImportResult(
     val mealsImported: Int = 0,
     val mealsSkipped: Int = 0,
     val intakesImported: Int = 0,
+    val recipesImported: Int = 0,
     val trackedDaysImported: Int = 0,
     val trackedDaysSkipped: Int = 0,
     val activitiesImported: Int = 0,
@@ -54,15 +170,17 @@ data class ImportResult(
 
 @Singleton
 class DataExportManager @Inject constructor(
-    @ApplicationContext private val context: Context,
+    @ApplicationContext private val context: Context?,
     private val mealRepo: MealRepository,
     private val intakeRepo: IntakeRepository,
+    private val recipeRepo: RecipeRepository,
     private val trackedDayRepo: TrackedDayRepository,
     private val activityRepo: ActivityRepository,
     private val weightLogRepo: WeightLogRepository,
     private val waterRepo: WaterIntakeRepository,
     private val userRepo: UserRepository,
-    private val settingsRepo: SettingsRepository
+    private val settingsRepo: SettingsRepository?,
+    private val txRunner: DatabaseTransactionRunner
 ) {
     private val gson: Gson = GsonBuilder()
         .registerTypeAdapter(LocalDate::class.java, object : TypeAdapter<LocalDate>() {
@@ -76,315 +194,438 @@ class DataExportManager @Inject constructor(
         .setPrettyPrinting()
         .create()
 
-    private val thumbnailDir = File(context.filesDir, "meal_thumbnails")
-
     suspend fun exportData(uri: Uri): Result<Unit> = withContext(Dispatchers.IO) {
         try {
-            val meals = mealRepo.getAllFlow().first()
-            val allIntakes = intakeRepo.getAll()
-
-            val settings = mapOf(
-                "dayBoundaryMinutes" to settingsRepo.dayBoundaryMinutes.first(),
-                "kcalAdjustment" to settingsRepo.kcalAdjustment.first(),
-                "carbPct" to settingsRepo.carbPct.first(),
-                "fatPct" to settingsRepo.fatPct.first(),
-                "proteinPct" to settingsRepo.proteinPct.first(),
-                "waterGoalMl" to settingsRepo.waterGoalMl.first(),
-                "onboardingDone" to settingsRepo.onboardingDone.first()
-            )
-
-            val exportData = ExportData(
-                settings = settings,
-                meals = meals,
-                intakes = allIntakes,
-                trackedDays = trackedDayRepo.getAll(),
-                activities = activityRepo.getAll(),
-                weightLogs = weightLogRepo.getAllFlow().first(),
-                waterIntakes = waterRepo.getAll(),
-                user = userRepo.getUser()
-            )
-
-            val dataJson = gson.toJson(exportData)
-
-            context.contentResolver.openOutputStream(uri)?.use { outputStream ->
-                ZipOutputStream(outputStream).use { zip ->
-                    zip.putNextEntry(ZipEntry("data.json"))
-                    zip.write(dataJson.toByteArray(Charsets.UTF_8))
-                    zip.closeEntry()
-
-                    if (thumbnailDir.exists()) {
-                        thumbnailDir.listFiles()?.forEach { file ->
-                            zip.putNextEntry(ZipEntry("images/${file.name}"))
-                            file.inputStream().use { it.copyTo(zip) }
-                            zip.closeEntry()
-                        }
-                    }
-                }
+            val ctx = context ?: return@withContext Result.failure(IllegalStateException("Context 不可用"))
+            val thumbnailDir = File(ctx.filesDir, "meal_thumbnails")
+            val stream = ctx.contentResolver.openOutputStream(uri)
+                ?: return@withContext Result.failure(IOException("无法打开导出文件输出流"))
+            stream.use { outputStream ->
+                exportToStream(outputStream, thumbnailDir)
             }
-
             Result.success(Unit)
         } catch (e: Exception) {
             Result.failure(e)
         }
     }
 
-    suspend fun importData(uri: Uri): Result<ImportResult> = withContext(Dispatchers.IO) {
-        try {
-            var result = ImportResult()
+    suspend fun exportToStream(outputStream: OutputStream, thumbnailDir: File) {
+        val meals = mealRepo.getAll()
+        val allIntakes = intakeRepo.getAll()
+        val recipes = recipeRepo.getAllRecipes()
+        val recipeIngredients = recipeRepo.getAllIngredients()
+        val trackedDays = trackedDayRepo.getAll()
+        val activities = activityRepo.getAll()
+        val weightLogs = weightLogRepo.getAll()
+        val waterIntakes = waterRepo.getAll()
+        val user = userRepo.getUser()
 
-            context.contentResolver.openInputStream(uri)?.use { inputStream ->
-                val entries = mutableMapOf<String, ByteArray>()
-                ZipInputStream(inputStream).use { zip ->
-                    var entry = zip.nextEntry
-                    while (entry != null) {
-                        if (!entry.isDirectory) {
-                            entries[entry.name] = zip.readBytes()
-                        }
-                        entry = zip.nextEntry
-                    }
-                }
+        val exportSettings = settingsRepo?.let { s ->
+            ExportBundle.ExportSettings(
+                dayBoundaryMinutes = s.dayBoundaryMinutes.first(),
+                kcalAdjustment = s.kcalAdjustment.first(),
+                carbPct = s.carbPct.first(),
+                fatPct = s.fatPct.first(),
+                proteinPct = s.proteinPct.first(),
+                waterGoalMl = s.waterGoalMl.first(),
+                waterQuickAmounts = s.waterQuickAmounts.first(),
+                onboardingDone = s.onboardingDone.first(),
+                themeMode = s.themeMode.first().name,
+                dynamicColorEnabled = s.dynamicColorEnabled.first(),
+                useKj = s.useKj.first(),
+                aiAutoConfirm = s.aiAutoConfirm.first()
+            )
+        }
 
-                val dataJson = entries["data.json"]?.toString(Charsets.UTF_8)
-                    ?: return@withContext Result.failure(Exception("ZIP 中未找到 data.json"))
-
-                @Suppress("UNCHECKED_CAST")
-                val root = gson.fromJson(dataJson, Map::class.java) as Map<String, Any>
-
-                // 导入图片
-                val imagesDir = File(context.filesDir, "meal_thumbnails")
-                if (!imagesDir.exists()) imagesDir.mkdirs()
-                var imgImported = 0
-                var imgSkipped = 0
-                entries.filter { it.key.startsWith("images/") }.forEach { (path, bytes) ->
-                    val fileName = path.removePrefix("images/")
-                    val targetFile = File(imagesDir, fileName)
-                    if (!targetFile.exists()) {
-                        targetFile.writeBytes(bytes)
-                        imgImported++
-                    } else {
-                        imgSkipped++
-                    }
-                }
-
-                // 解析 meals
-                @Suppress("UNCHECKED_CAST")
-                val mealsList = (root["meals"] as? List<Map<String, Any>>)?.map { m ->
-                    Meal(
-                        id = (m["id"] as? Number)?.toLong() ?: 0L,
-                        name = m["name"] as? String ?: "",
-                        brands = m["brands"] as? String,
-                        barcode = m["barcode"] as? String,
-                        imageUrl = m["imageUrl"] as? String,
-                        localImagePath = m["localImagePath"] as? String,
-                        source = try { MealSource.valueOf(m["source"] as? String ?: "MANUAL") } catch (_: Exception) { MealSource.MANUAL },
-                        energyKcal100 = (m["energyKcal100"] as? Number)?.toDouble() ?: 0.0,
-                        carbohydrates100 = (m["carbohydrates100"] as? Number)?.toDouble() ?: 0.0,
-                        fat100 = (m["fat100"] as? Number)?.toDouble() ?: 0.0,
-                        proteins100 = (m["proteins100"] as? Number)?.toDouble() ?: 0.0,
-                        sugars100 = (m["sugars100"] as? Number)?.toDouble(),
-                        saturatedFat100 = (m["saturatedFat100"] as? Number)?.toDouble(),
-                        fiber100 = (m["fiber100"] as? Number)?.toDouble(),
-                        sodium100 = (m["sodium100"] as? Number)?.toDouble(),
-                        cholesterol100 = (m["cholesterol100"] as? Number)?.toDouble(),
-                        servingSize = m["servingSize"] as? String,
-                        servingQuantityG = (m["servingQuantityG"] as? Number)?.toDouble(),
-                        foodItemsJson = m["foodItemsJson"] as? String
-                    )
-                } ?: emptyList()
-
-                // 修正图片路径
-                val adjustedMeals = mealsList.map { meal ->
-                    meal.localImagePath?.let { path ->
-                        val fileName = File(path).name
-                        val localPath = File(imagesDir, fileName).absolutePath
-                        meal.copy(localImagePath = if (File(localPath).exists()) localPath else null)
-                    } ?: meal
-                }
-
-                // 导入 Meals（按 name+source 去重，建立 oldId -> newId 映射）
-                val existingMeals = mealRepo.getAllFlow().first()
-                val existingMealKeys = existingMeals.map { "${it.name}_${it.source}" }.toSet()
-                val idMap = mutableMapOf<Long, Long>()
-                var mealsImported = 0
-                var mealsSkipped = 0
-
-                for (meal in adjustedMeals) {
-                    val key = "${meal.name}_${meal.source}"
-                    if (key in existingMealKeys) {
-                        mealsSkipped++
-                        continue
-                    }
-                    val newId = mealRepo.upsert(meal.copy(id = 0))
-                    idMap[meal.id] = newId
-                    mealsImported++
-                }
-
-                // 解析 intakes
-                @Suppress("UNCHECKED_CAST")
-                val intakesList = (root["intakes"] as? List<Map<String, Any>>)?.map { m ->
-                    Intake(
-                        id = (m["id"] as? Number)?.toLong() ?: 0L,
-                        mealId = (m["mealId"] as? Number)?.toLong() ?: 0L,
-                        intakeType = try { IntakeType.valueOf(m["intakeType"] as? String ?: "BREAKFAST") } catch (_: Exception) { IntakeType.BREAKFAST },
-                        amount = (m["amount"] as? Number)?.toDouble() ?: 0.0,
-                        unit = m["unit"] as? String ?: "g",
-                        dateTime = try { LocalDateTime.parse(m["dateTime"] as? String ?: "") } catch (_: Exception) { LocalDateTime.now() }
-                    )
-                } ?: emptyList()
-
-                // 导入 Intakes（用新的 mealId）
-                val adjustedIntakes = intakesList.mapNotNull { intake ->
-                    val newMealId = idMap[intake.mealId] ?: return@mapNotNull null
-                    intake.copy(id = 0, mealId = newMealId)
-                }
-                var intakesImported = 0
-                for (intake in adjustedIntakes) {
-                    intakeRepo.upsert(intake)
-                    intakesImported++
-                }
-
-                // 解析 trackedDays
-                @Suppress("UNCHECKED_CAST")
-                val trackedDaysList = (root["trackedDays"] as? List<Map<String, Any>>)?.map { m ->
-                    TrackedDay(
-                        date = try { LocalDate.parse(m["date"] as? String ?: "") } catch (_: Exception) { LocalDate.now() },
-                        calorieGoal = (m["calorieGoal"] as? Number)?.toDouble() ?: 0.0,
-                        caloriesTracked = (m["caloriesTracked"] as? Number)?.toDouble() ?: 0.0,
-                        carbsGoal = (m["carbsGoal"] as? Number)?.toDouble(),
-                        carbsTracked = (m["carbsTracked"] as? Number)?.toDouble(),
-                        fatGoal = (m["fatGoal"] as? Number)?.toDouble(),
-                        fatTracked = (m["fatTracked"] as? Number)?.toDouble(),
-                        proteinGoal = (m["proteinGoal"] as? Number)?.toDouble(),
-                        proteinTracked = (m["proteinTracked"] as? Number)?.toDouble()
-                    )
-                } ?: emptyList()
-
-                // 导入 TrackedDays（按 date 去重）
-                var tdImported = 0
-                var tdSkipped = 0
-                for (td in trackedDaysList) {
-                    val existing = trackedDayRepo.getByDate(td.date)
-                    if (existing == null) {
-                        trackedDayRepo.upsert(td)
-                        tdImported++
-                    } else {
-                        tdSkipped++
-                    }
-                }
-
-                // 解析 activities
-                @Suppress("UNCHECKED_CAST")
-                val activitiesList = (root["activities"] as? List<Map<String, Any>>)?.map { m ->
-                    UserActivityEntity(
-                        id = (m["id"] as? Number)?.toLong() ?: 0L,
-                        name = m["name"] as? String ?: "",
-                        mets = (m["mets"] as? Number)?.toDouble() ?: 0.0,
-                        durationMinutes = (m["durationMinutes"] as? Number)?.toDouble() ?: 0.0,
-                        burnedKcal = (m["burnedKcal"] as? Number)?.toDouble() ?: 0.0,
-                        dateTime = try { LocalDateTime.parse(m["dateTime"] as? String ?: "") } catch (_: Exception) { LocalDateTime.now() },
-                        isCustom = m["isCustom"] as? Boolean ?: false,
-                        category = m["category"] as? String
-                    )
-                } ?: emptyList()
-
-                // 导入 Activities（直接导入）
-                var actImported = 0
-                for (act in activitiesList) {
-                    activityRepo.upsert(act.copy(id = 0))
-                    actImported++
-                }
-
-                // 解析 weightLogs
-                @Suppress("UNCHECKED_CAST")
-                val weightLogsList = (root["weightLogs"] as? List<Map<String, Any>>)?.map { m ->
-                    WeightLog(
-                        date = try { LocalDate.parse(m["date"] as? String ?: "") } catch (_: Exception) { LocalDate.now() },
-                        weightKg = (m["weightKg"] as? Number)?.toDouble() ?: 0.0
-                    )
-                } ?: emptyList()
-
-                // 导入 WeightLogs（按 date 去重）
-                var wlImported = 0
-                var wlSkipped = 0
-                for (wl in weightLogsList) {
-                    val existing = weightLogRepo.getByRange(wl.date, wl.date).firstOrNull()
-                    if (existing == null) {
-                        weightLogRepo.upsert(wl)
-                        wlImported++
-                    } else {
-                        wlSkipped++
-                    }
-                }
-
-                // 解析 waterIntakes
-                @Suppress("UNCHECKED_CAST")
-                val waterIntakesList = (root["waterIntakes"] as? List<Map<String, Any>>)?.map { m ->
-                    WaterIntake(
-                        id = (m["id"] as? Number)?.toLong() ?: 0L,
-                        amountMl = (m["amountMl"] as? Number)?.toInt() ?: 0,
-                        dateTime = try { LocalDateTime.parse(m["dateTime"] as? String ?: "") } catch (_: Exception) { LocalDateTime.now() }
-                    )
-                } ?: emptyList()
-
-                // 导入 WaterIntakes（直接导入）
-                var wiImported = 0
-                for (wi in waterIntakesList) {
-                    waterRepo.upsert(wi.copy(id = 0))
-                    wiImported++
-                }
-
-                // 导入 User（覆盖）
-                @Suppress("UNCHECKED_CAST")
-                val userMap = root["user"] as? Map<String, Any>
-                if (userMap != null) {
-                    val user = User(
-                        id = (userMap["id"] as? Number)?.toInt() ?: 1,
-                        birthday = try { LocalDate.parse(userMap["birthday"] as? String ?: "") } catch (_: Exception) { LocalDate.now() },
-                        heightCm = (userMap["heightCm"] as? Number)?.toDouble() ?: 170.0,
-                        weightKg = (userMap["weightKg"] as? Number)?.toDouble() ?: 70.0,
-                        gender = try { Gender.valueOf(userMap["gender"] as? String ?: "MALE") } catch (_: Exception) { Gender.MALE },
-                        activityLevel = try { ActivityLevel.valueOf(userMap["activityLevel"] as? String ?: "SEDENTARY") } catch (_: Exception) { ActivityLevel.SEDENTARY },
-                        weightGoal = try { WeightGoal.valueOf(userMap["weightGoal"] as? String ?: "MAINTAIN") } catch (_: Exception) { WeightGoal.MAINTAIN },
-                        caloriesProfile = try { CaloriesProfile.valueOf(userMap["caloriesProfile"] as? String ?: "AVERAGED") } catch (_: Exception) { CaloriesProfile.AVERAGED },
-                        weeklyWeightGoalKg = (userMap["weeklyWeightGoalKg"] as? Number)?.toDouble(),
-                        targetWeightKg = (userMap["targetWeightKg"] as? Number)?.toDouble(),
-                        caloriesTaperEnabled = userMap["caloriesTaperEnabled"] as? Boolean ?: false,
-                        usesImperialUnits = userMap["usesImperialUnits"] as? Boolean ?: false
-                    )
-                    userRepo.upsert(user)
-                }
-
-                // 导入 Settings
-                @Suppress("UNCHECKED_CAST")
-                val settings = root["settings"] as? Map<String, Any> ?: emptyMap()
-                settings["dayBoundaryMinutes"]?.let { settingsRepo.setDayBoundaryMinutes((it as Number).toInt()) }
-                settings["kcalAdjustment"]?.let { settingsRepo.setKcalAdjustment((it as Number).toDouble()) }
-                settings["carbPct"]?.let { settingsRepo.setCarbPct((it as Number).toDouble()) }
-                settings["fatPct"]?.let { settingsRepo.setFatPct((it as Number).toDouble()) }
-                settings["proteinPct"]?.let { settingsRepo.setProteinPct((it as Number).toDouble()) }
-                settings["waterGoalMl"]?.let { settingsRepo.setWaterGoalMl((it as Number).toInt()) }
-                settings["onboardingDone"]?.let { settingsRepo.setOnboardingDone(it as Boolean) }
-
-                result = ImportResult(
-                    mealsImported = mealsImported,
-                    mealsSkipped = mealsSkipped,
-                    intakesImported = intakesImported,
-                    trackedDaysImported = tdImported,
-                    trackedDaysSkipped = tdSkipped,
-                    activitiesImported = actImported,
-                    weightLogsImported = wlImported,
-                    weightLogsSkipped = wlSkipped,
-                    waterIntakesImported = wiImported,
-                    userImported = userMap != null,
-                    settingsImported = settings.isNotEmpty(),
-                    imagesImported = imgImported,
-                    imagesSkipped = imgSkipped
+        val bundle = ExportBundle(
+            settings = exportSettings,
+            meals = meals.map { m ->
+                ExportBundle.ExportMeal(
+                    id = m.id,
+                    name = m.name,
+                    localImagePath = m.localImagePath,
+                    source = m.source.name,
+                    energyKcal100 = m.energyKcal100,
+                    carbohydrates100 = m.carbohydrates100,
+                    fat100 = m.fat100,
+                    proteins100 = m.proteins100,
+                    sugars100 = m.sugars100,
+                    saturatedFat100 = m.saturatedFat100,
+                    fiber100 = m.fiber100,
+                    sodium100 = m.sodium100,
+                    cholesterol100 = m.cholesterol100,
+                    portionLabel = m.portionLabel,
+                    portionGrams = m.portionGrams,
+                    isFavorite = m.isFavorite,
+                    isArchived = m.isArchived,
+                    foodItemsJson = m.foodItemsJson
+                )
+            },
+            intakes = allIntakes.map { i ->
+                ExportBundle.ExportIntake(
+                    id = i.id,
+                    mealId = i.mealId,
+                    intakeType = i.intakeType.name,
+                    amount = i.amount,
+                    unit = i.unit,
+                    dateTime = i.dateTime.toString()
+                )
+            },
+            recipes = recipes.map { r ->
+                ExportBundle.ExportRecipe(
+                    id = r.id,
+                    name = r.name,
+                    description = r.description,
+                    defaultServings = r.defaultServings,
+                    createdAt = r.createdAt.toString()
+                )
+            },
+            recipeIngredients = recipeIngredients.map { ri ->
+                ExportBundle.ExportRecipeIngredient(
+                    id = ri.id,
+                    recipeId = ri.recipeId,
+                    mealId = ri.mealId,
+                    amountGrams = ri.amountGrams
+                )
+            },
+            trackedDays = trackedDays.map { td ->
+                ExportBundle.ExportTrackedDay(
+                    date = td.date.toString(),
+                    calorieGoal = td.calorieGoal,
+                    caloriesTracked = td.caloriesTracked,
+                    carbsGoal = td.carbsGoal,
+                    carbsTracked = td.carbsTracked,
+                    fatGoal = td.fatGoal,
+                    fatTracked = td.fatTracked,
+                    proteinGoal = td.proteinGoal,
+                    proteinTracked = td.proteinTracked
+                )
+            },
+            activities = activities.map { a ->
+                ExportBundle.ExportActivity(
+                    id = a.id,
+                    name = a.name,
+                    mets = a.mets,
+                    durationMinutes = a.durationMinutes,
+                    burnedKcal = a.burnedKcal,
+                    dateTime = a.dateTime.toString(),
+                    isCustom = a.isCustom,
+                    category = a.category
+                )
+            },
+            weightLogs = weightLogs.map { wl ->
+                ExportBundle.ExportWeightLog(
+                    date = wl.date.toString(),
+                    weightKg = wl.weightKg
+                )
+            },
+            waterIntakes = waterIntakes.map { wi ->
+                ExportBundle.ExportWaterIntake(
+                    id = wi.id,
+                    amountMl = wi.amountMl,
+                    dateTime = wi.dateTime.toString()
+                )
+            },
+            user = user?.let { u ->
+                ExportBundle.ExportUser(
+                    id = u.id,
+                    birthday = u.birthday.toString(),
+                    heightCm = u.heightCm,
+                    weightKg = u.weightKg,
+                    gender = u.gender.name,
+                    activityLevel = u.activityLevel.name,
+                    weightGoal = u.weightGoal.name,
+                    caloriesProfile = u.caloriesProfile.name,
+                    weeklyWeightGoalKg = u.weeklyWeightGoalKg,
+                    targetWeightKg = u.targetWeightKg,
+                    caloriesTaperEnabled = u.caloriesTaperEnabled,
+                    usesImperialUnits = u.usesImperialUnits
                 )
             }
+        )
 
+        val dataJson = gson.toJson(bundle)
+        ZipOutputStream(outputStream).use { zip ->
+            zip.putNextEntry(ZipEntry("data.json"))
+            zip.write(dataJson.toByteArray(Charsets.UTF_8))
+            zip.closeEntry()
+
+            if (thumbnailDir.exists()) {
+                thumbnailDir.listFiles()?.forEach { file ->
+                    if (file.isFile) {
+                        zip.putNextEntry(ZipEntry("images/${file.name}"))
+                        file.inputStream().use { it.copyTo(zip) }
+                        zip.closeEntry()
+                    }
+                }
+            }
+        }
+    }
+
+    suspend fun importData(uri: Uri): Result<ImportResult> = withContext(Dispatchers.IO) {
+        try {
+            val ctx = context ?: return@withContext Result.failure(IllegalStateException("Context 不可用"))
+            val imagesDir = File(ctx.filesDir, "meal_thumbnails")
+            val stream = ctx.contentResolver.openInputStream(uri)
+                ?: return@withContext Result.failure(IOException("无法打开导入文件"))
+            val result = stream.use { inputStream ->
+                importFromStream(inputStream, imagesDir)
+            }
             Result.success(result)
         } catch (e: Exception) {
             Result.failure(e)
+        }
+    }
+
+    suspend fun importFromStream(inputStream: InputStream, imagesDir: File): ImportResult {
+        val entries = mutableMapOf<String, ByteArray>()
+        ZipInputStream(inputStream).use { zip ->
+            var entry = zip.nextEntry
+            while (entry != null) {
+                if (!entry.isDirectory) {
+                    entries[entry.name] = zip.readBytes()
+                }
+                entry = zip.nextEntry
+            }
+        }
+
+        val dataJson = entries["data.json"]?.toString(Charsets.UTF_8)
+            ?: throw IOException("ZIP 中未找到 data.json")
+
+        val bundle = gson.fromJson(dataJson, ExportBundle::class.java)
+            ?: throw IOException("data.json 解析为空")
+
+        if (!imagesDir.exists()) imagesDir.mkdirs()
+        val canonicalImagesRoot = imagesDir.canonicalFile
+
+        var imgImported = 0
+        var imgSkipped = 0
+        entries.filterKeys { it.startsWith("images/") }.forEach { (path, bytes) ->
+            val rawName = path.removePrefix("images/")
+            val safeName = File(rawName).name
+            if (safeName.isBlank() || safeName == "." || safeName == "..") return@forEach
+            val targetFile = File(imagesDir, safeName).canonicalFile
+            if (targetFile.parentFile != canonicalImagesRoot) {
+                return@forEach // Zip Slip protection
+            }
+            if (!targetFile.exists()) {
+                targetFile.writeBytes(bytes)
+                imgImported++
+            } else {
+                imgSkipped++
+            }
+        }
+
+        return txRunner.runInTransaction {
+            val existingMeals = mealRepo.getAll()
+            val existingByKey = existingMeals.associateBy { "${it.name}_${it.source.name}" }.toMutableMap()
+            val mealIdMap = mutableMapOf<Long, Long>()
+            var mealsImported = 0
+            var mealsSkipped = 0
+
+            for (em in bundle.meals) {
+                val source = runCatching { MealSource.valueOf(em.source) }.getOrDefault(MealSource.MANUAL)
+                val key = "${em.name}_${source.name}"
+                val existing = existingByKey[key]
+                if (existing != null) {
+                    mealIdMap[em.id] = existing.id
+                    mealsSkipped++
+                    continue
+                }
+                val resolvedImg = em.localImagePath?.let { path ->
+                    val candidate = File(imagesDir, File(path).name)
+                    if (candidate.exists()) candidate.absolutePath else null
+                }
+                val entity = Meal(
+                    id = 0,
+                    name = em.name,
+                    localImagePath = resolvedImg,
+                    source = source,
+                    energyKcal100 = em.energyKcal100,
+                    carbohydrates100 = em.carbohydrates100,
+                    fat100 = em.fat100,
+                    proteins100 = em.proteins100,
+                    sugars100 = em.sugars100,
+                    saturatedFat100 = em.saturatedFat100,
+                    fiber100 = em.fiber100,
+                    sodium100 = em.sodium100,
+                    cholesterol100 = em.cholesterol100,
+                    portionLabel = em.portionLabel,
+                    portionGrams = em.portionGrams,
+                    isFavorite = em.isFavorite,
+                    isArchived = em.isArchived,
+                    foodItemsJson = em.foodItemsJson
+                )
+                val newId = mealRepo.upsert(entity)
+                mealIdMap[em.id] = newId
+                existingByKey[key] = entity.copy(id = newId)
+                mealsImported++
+            }
+
+            var intakesImported = 0
+            for (ei in bundle.intakes) {
+                val mappedMealId = mealIdMap[ei.mealId] ?: continue
+                val parsedDt = runCatching { LocalDateTime.parse(ei.dateTime) }.getOrElse { LocalDateTime.now() }
+                val type = runCatching { IntakeType.valueOf(ei.intakeType) }.getOrDefault(IntakeType.BREAKFAST)
+                intakeRepo.upsert(
+                    Intake(
+                        id = 0,
+                        mealId = mappedMealId,
+                        intakeType = type,
+                        amount = ei.amount,
+                        unit = ei.unit.ifBlank { "g" },
+                        dateTime = parsedDt
+                    )
+                )
+                intakesImported++
+            }
+
+            // Import recipes & ingredients
+            val existingRecipeNames = recipeRepo.getAllRecipes().map { it.name }.toSet()
+            var recipesImported = 0
+            val ingredientsByRecipe = bundle.recipeIngredients.groupBy { it.recipeId }
+            for (er in bundle.recipes) {
+                if (er.name in existingRecipeNames) continue
+                val mappedIngredients = ingredientsByRecipe[er.id].orEmpty().mapNotNull { ri ->
+                    val newMealId = mealIdMap[ri.mealId] ?: return@mapNotNull null
+                    newMealId to ri.amountGrams
+                }
+                val createdAt = runCatching { LocalDateTime.parse(er.createdAt) }.getOrElse { LocalDateTime.now() }
+                recipeRepo.saveRecipe(
+                    Recipe(
+                        id = 0,
+                        name = er.name,
+                        description = er.description,
+                        defaultServings = er.defaultServings,
+                        createdAt = createdAt
+                    ),
+                    mappedIngredients
+                )
+                recipesImported++
+            }
+
+            var tdImported = 0
+            var tdSkipped = 0
+            for (etd in bundle.trackedDays) {
+                val parsedDate = runCatching { LocalDate.parse(etd.date) }.getOrNull() ?: continue
+                val existing = trackedDayRepo.getByDate(parsedDate)
+                if (existing == null) {
+                    trackedDayRepo.upsert(
+                        TrackedDay(
+                            date = parsedDate,
+                            calorieGoal = etd.calorieGoal,
+                            caloriesTracked = etd.caloriesTracked,
+                            carbsGoal = etd.carbsGoal,
+                            carbsTracked = etd.carbsTracked,
+                            fatGoal = etd.fatGoal,
+                            fatTracked = etd.fatTracked,
+                            proteinGoal = etd.proteinGoal,
+                            proteinTracked = etd.proteinTracked
+                        )
+                    )
+                    tdImported++
+                } else {
+                    tdSkipped++
+                }
+            }
+
+            var actImported = 0
+            for (ea in bundle.activities) {
+                val parsedDt = runCatching { LocalDateTime.parse(ea.dateTime) }.getOrElse { LocalDateTime.now() }
+                activityRepo.upsert(
+                    UserActivityEntity(
+                        id = 0,
+                        name = ea.name,
+                        mets = ea.mets,
+                        durationMinutes = ea.durationMinutes,
+                        burnedKcal = ea.burnedKcal,
+                        dateTime = parsedDt,
+                        isCustom = ea.isCustom,
+                        category = ea.category
+                    )
+                )
+                actImported++
+            }
+
+            var wlImported = 0
+            var wlSkipped = 0
+            for (ewl in bundle.weightLogs) {
+                val parsedDate = runCatching { LocalDate.parse(ewl.date) }.getOrNull() ?: continue
+                val existing = weightLogRepo.getByRange(parsedDate, parsedDate).firstOrNull()
+                if (existing == null) {
+                    weightLogRepo.upsert(WeightLog(date = parsedDate, weightKg = ewl.weightKg))
+                    wlImported++
+                } else {
+                    wlSkipped++
+                }
+            }
+
+            var wiImported = 0
+            for (ewi in bundle.waterIntakes) {
+                val parsedDt = runCatching { LocalDateTime.parse(ewi.dateTime) }.getOrElse { LocalDateTime.now() }
+                waterRepo.upsert(
+                    WaterIntake(
+                        id = 0,
+                        amountMl = ewi.amountMl,
+                        dateTime = parsedDt
+                    )
+                )
+                wiImported++
+            }
+
+            bundle.user?.let { eu ->
+                val birthday = runCatching { LocalDate.parse(eu.birthday) }.getOrElse { LocalDate.of(2000, 1, 1) }
+                val user = User(
+                    id = 1,
+                    birthday = birthday,
+                    heightCm = eu.heightCm,
+                    weightKg = eu.weightKg,
+                    gender = runCatching { Gender.valueOf(eu.gender) }.getOrDefault(Gender.MALE),
+                    activityLevel = runCatching { ActivityLevel.valueOf(eu.activityLevel) }.getOrDefault(ActivityLevel.SEDENTARY),
+                    weightGoal = runCatching { WeightGoal.valueOf(eu.weightGoal) }.getOrDefault(WeightGoal.MAINTAIN),
+                    caloriesProfile = runCatching { CaloriesProfile.valueOf(eu.caloriesProfile) }.getOrDefault(CaloriesProfile.AVERAGED),
+                    weeklyWeightGoalKg = eu.weeklyWeightGoalKg,
+                    targetWeightKg = eu.targetWeightKg,
+                    caloriesTaperEnabled = eu.caloriesTaperEnabled,
+                    usesImperialUnits = eu.usesImperialUnits
+                )
+                userRepo.upsert(user)
+            }
+
+            val s = bundle.settings
+            if (s != null && settingsRepo != null) {
+                s.dayBoundaryMinutes?.let { settingsRepo.setDayBoundaryMinutes(it) }
+                s.kcalAdjustment?.let { settingsRepo.setKcalAdjustment(it) }
+                s.carbPct?.let { settingsRepo.setCarbPct(it) }
+                s.fatPct?.let { settingsRepo.setFatPct(it) }
+                s.proteinPct?.let { settingsRepo.setProteinPct(it) }
+                s.waterGoalMl?.let { settingsRepo.setWaterGoalMl(it) }
+                s.waterQuickAmounts?.let { settingsRepo.setWaterQuickAmounts(it) }
+                s.onboardingDone?.let { settingsRepo.setOnboardingDone(it) }
+                s.themeMode?.let { tm ->
+                    runCatching { ThemeMode.valueOf(tm) }.getOrNull()?.let { settingsRepo.setThemeMode(it) }
+                }
+                s.dynamicColorEnabled?.let { settingsRepo.setDynamicColorEnabled(it) }
+                s.useKj?.let { settingsRepo.setUseKj(it) }
+                s.aiAutoConfirm?.let { settingsRepo.setAiAutoConfirm(it) }
+            }
+
+            ImportResult(
+                mealsImported = mealsImported,
+                mealsSkipped = mealsSkipped,
+                intakesImported = intakesImported,
+                recipesImported = recipesImported,
+                trackedDaysImported = tdImported,
+                trackedDaysSkipped = tdSkipped,
+                activitiesImported = actImported,
+                weightLogsImported = wlImported,
+                weightLogsSkipped = wlSkipped,
+                waterIntakesImported = wiImported,
+                userImported = bundle.user != null,
+                settingsImported = s != null,
+                imagesImported = imgImported,
+                imagesSkipped = imgSkipped
+            )
         }
     }
 }
