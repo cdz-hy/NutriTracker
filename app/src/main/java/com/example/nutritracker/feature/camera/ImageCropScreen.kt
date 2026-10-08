@@ -1,10 +1,6 @@
 package com.example.nutritracker.feature.camera
 
-import android.content.Context
 import android.graphics.Bitmap
-import android.graphics.BitmapFactory
-import android.graphics.Matrix
-import android.media.ExifInterface
 import android.net.Uri
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.*
@@ -23,11 +19,12 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.example.nutritracker.util.ImageUtils
 import com.smarttoolfactory.cropper.ImageCropper
-import com.smarttoolfactory.cropper.settings.CropDefaults
-import com.smarttoolfactory.cropper.settings.CropOutlineProperty
 import com.smarttoolfactory.cropper.model.OutlineType
 import com.smarttoolfactory.cropper.model.RectCropShape
+import com.smarttoolfactory.cropper.settings.CropDefaults
+import com.smarttoolfactory.cropper.settings.CropOutlineProperty
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -44,21 +41,19 @@ fun ImageCropScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
-    BackHandler {
-        onBack()
-    }
+    BackHandler(enabled = true) { onBack() }
 
     var imageBitmap by remember { mutableStateOf<ImageBitmap?>(null) }
     var imageLoadError by remember { mutableStateOf(false) }
 
     val configuration = LocalConfiguration.current
     val density = LocalDensity.current
-    val screenW = with(density) { configuration.screenWidthDp.dp.toPx().toInt() }
-    val screenH = with(density) { configuration.screenHeightDp.dp.toPx().toInt() }
+    val screenW = with(density) { configuration.screenWidthDp.dp.toPx().toInt() }.coerceAtLeast(720)
+    val screenH = with(density) { configuration.screenHeightDp.dp.toPx().toInt() }.coerceAtLeast(1080)
 
     LaunchedEffect(imageUri) {
         withContext(Dispatchers.IO) {
-            val bmp = loadBitmapSafe(context, imageUri, screenW * 2, screenH * 2)
+            val bmp = ImageUtils.loadBitmapSafe(context, imageUri, screenW * 2, screenH * 2)
             if (bmp != null) {
                 imageBitmap = bmp.asImageBitmap()
             } else {
@@ -82,7 +77,7 @@ fun ImageCropScreen(
                     )
                 },
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
+                    IconButton(onClick = onBack, enabled = !isCropping) {
                         Icon(
                             Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = "返回",
@@ -109,11 +104,13 @@ fun ImageCropScreen(
                 ) {
                     OutlinedButton(
                         onClick = onBack,
+                        enabled = !isCropping,
                         modifier = Modifier.weight(1f).height(48.dp),
                         shape = MaterialTheme.shapes.medium
                     ) { Text("取消") }
                     Button(
-                        onClick = { crop = true },
+                        onClick = { if (!isCropping && imageBitmap != null) crop = true },
+                        enabled = !isCropping && imageBitmap != null,
                         modifier = Modifier.weight(1f).height(48.dp),
                         shape = MaterialTheme.shapes.medium,
                         colors = ButtonDefaults.buttonColors(
@@ -160,10 +157,9 @@ fun ImageCropScreen(
                     onCropSuccess = { resultBitmap ->
                         scope.launch(Dispatchers.IO) {
                             val bmp = resultBitmap.asAndroidBitmap()
-                            // Write to a new temporary file in cacheDir instead of overwriting original
                             val file = File(context.cacheDir, "cropped_${System.currentTimeMillis()}.jpg")
                             FileOutputStream(file).use { out ->
-                                bmp.compress(Bitmap.CompressFormat.JPEG, 95, out)
+                                bmp.compress(Bitmap.CompressFormat.JPEG, 92, out)
                             }
                             val newUri = Uri.fromFile(file)
                             withContext(Dispatchers.Main) {
@@ -181,69 +177,4 @@ fun ImageCropScreen(
             }
         }
     }
-}
-
-private fun loadBitmapSafe(context: Context, uri: Uri, maxW: Int, maxH: Int): Bitmap? {
-    val contentResolver = context.contentResolver
-    
-    // 1. Get EXIF rotation
-    var rotation = 0
-    try {
-        val input = contentResolver.openInputStream(uri) ?: File(uri.path!!).inputStream()
-        val exif = ExifInterface(input)
-        val orientation = exif.getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL)
-        rotation = when (orientation) {
-            ExifInterface.ORIENTATION_ROTATE_90 -> 90
-            ExifInterface.ORIENTATION_ROTATE_180 -> 180
-            ExifInterface.ORIENTATION_ROTATE_270 -> 270
-            else -> 0
-        }
-        input.close()
-    } catch (e: Exception) { e.printStackTrace() }
-
-    // 2. Decode bounds
-    val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-    try {
-        val input = contentResolver.openInputStream(uri) ?: File(uri.path!!).inputStream()
-        BitmapFactory.decodeStream(input, null, options)
-        input.close()
-    } catch (e: Exception) { return null }
-
-    // 3. Calculate sample size
-    var width = options.outWidth
-    var height = options.outHeight
-    var inSampleSize = 1
-    if (rotation == 90 || rotation == 270) {
-        width = options.outHeight
-        height = options.outWidth
-    }
-    if (height > maxH || width > maxW) {
-        val halfHeight: Int = height / 2
-        val halfWidth: Int = width / 2
-        while (halfHeight / inSampleSize >= maxH && halfWidth / inSampleSize >= maxW) {
-            inSampleSize *= 2
-        }
-    }
-
-    // 4. Decode actual bitmap
-    options.inJustDecodeBounds = false
-    options.inSampleSize = inSampleSize
-    var bitmap: Bitmap? = null
-    try {
-        val input = contentResolver.openInputStream(uri) ?: File(uri.path!!).inputStream()
-        bitmap = BitmapFactory.decodeStream(input, null, options)
-        input.close()
-    } catch (e: Exception) { return null }
-
-    // 5. Apply rotation
-    if (rotation != 0 && bitmap != null) {
-        val matrix = Matrix()
-        matrix.postRotate(rotation.toFloat())
-        val rotated = Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
-        if (rotated != bitmap) {
-            bitmap.recycle()
-            bitmap = rotated
-        }
-    }
-    return bitmap
 }

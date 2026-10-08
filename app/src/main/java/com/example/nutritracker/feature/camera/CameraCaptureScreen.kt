@@ -1,8 +1,10 @@
 package com.example.nutritracker.feature.camera
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
+import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -12,9 +14,13 @@ import androidx.camera.core.ImageCaptureException
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -25,21 +31,21 @@ import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.TextSnippet
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.listSaver
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.viewinterop.AndroidView
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
-import coil.compose.AsyncImage
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import coil.compose.AsyncImage
+import com.example.nutritracker.util.ImageUtils
 import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -56,9 +62,15 @@ fun CameraCaptureScreen(
         )
     }
     var errorMessage by remember { mutableStateOf<String?>(null) }
-    var notes by remember { mutableStateOf("") }
+    var notes by rememberSaveable { mutableStateOf("") }
 
-    val selectedUris = remember { mutableStateListOf<Uri>() }
+    val uriListSaver = remember {
+        listSaver<List<Uri>, String>(
+            save = { list -> list.map { it.toString() } },
+            restore = { strings -> strings.map { Uri.parse(it) } }
+        )
+    }
+    var selectedUris by rememberSaveable(stateSaver = uriListSaver) { mutableStateOf(emptyList()) }
     val maxImages = 4
     var croppingUri by remember { mutableStateOf<Uri?>(null) }
 
@@ -73,10 +85,14 @@ fun CameraCaptureScreen(
     ) { uris ->
         if (uris.isNotEmpty()) {
             val remainingSpace = maxImages - selectedUris.size
-            if (remainingSpace > 0) {
-                selectedUris.addAll(uris.take(remainingSpace))
-            } else {
+            if (remainingSpace <= 0) {
                 errorMessage = "最多只能选择 $maxImages 张图片"
+            } else {
+                val added = uris.take(remainingSpace)
+                selectedUris = selectedUris + added
+                if (uris.size > remainingSpace) {
+                    errorMessage = "已达到上限 $maxImages 张，仅保留前 $remainingSpace 张"
+                }
             }
         }
     }
@@ -101,7 +117,10 @@ fun CameraCaptureScreen(
                     )
                 },
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
+                    IconButton(onClick = {
+                        ImageUtils.cleanupTempFiles(context, selectedUris)
+                        onBack()
+                    }) {
                         Icon(
                             Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = "返回",
@@ -139,7 +158,8 @@ fun CameraCaptureScreen(
                                         preview,
                                         imageCapture
                                     )
-                                } catch (_: Exception) {}
+                                } catch (_: Exception) {
+                                }
                             }, ContextCompat.getMainExecutor(ctx))
                         }
                     },
@@ -147,12 +167,14 @@ fun CameraCaptureScreen(
                 )
             } else {
                 Box(
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = 24.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         Icon(
                             Icons.Filled.CameraAlt,
@@ -166,10 +188,26 @@ fun CameraCaptureScreen(
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Text(
-                            text = "请授予相机权限以使用拍照功能",
+                            text = "请授予相机权限以拍照识别，也可直接点击下方相册按钮选图",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
+                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            FilledTonalButton(onClick = {
+                                permissionLauncher.launch(Manifest.permission.CAMERA)
+                            }) {
+                                Text("授予权限")
+                            }
+                            OutlinedButton(onClick = {
+                                val intent = Intent(
+                                    Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                                    Uri.fromParts("package", context.packageName, null)
+                                )
+                                runCatching { context.startActivity(intent) }
+                            }) {
+                                Text("系统设置")
+                            }
+                        }
                     }
                 }
             }
@@ -187,14 +225,10 @@ fun CameraCaptureScreen(
                         }
                     }
                 ) {
-                    Text(
-                        text = msg,
-                        style = MaterialTheme.typography.bodyMedium
-                    )
+                    Text(text = msg, style = MaterialTheme.typography.bodyMedium)
                 }
             }
 
-            // Thumbnail queue and Bottom controls
             Column(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
@@ -203,7 +237,6 @@ fun CameraCaptureScreen(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                // 文字说明输入
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -211,7 +244,7 @@ fun CameraCaptureScreen(
                         .height(52.dp)
                         .clip(MaterialTheme.shapes.extraLarge)
                         .background(
-                            MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.75f)
+                            MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.85f)
                         )
                         .padding(horizontal = 16.dp),
                     verticalAlignment = Alignment.CenterVertically
@@ -220,7 +253,7 @@ fun CameraCaptureScreen(
                         Icons.Filled.TextSnippet,
                         contentDescription = null,
                         modifier = Modifier.size(20.dp),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                     )
                     Spacer(Modifier.width(12.dp))
                     Box(modifier = Modifier.weight(1f)) {
@@ -228,7 +261,7 @@ fun CameraCaptureScreen(
                             Text(
                                 text = "描述做法、分量、食材等...",
                                 style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.45f),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f),
                                 maxLines = 1
                             )
                         }
@@ -239,9 +272,7 @@ fun CameraCaptureScreen(
                             textStyle = MaterialTheme.typography.bodyMedium.copy(
                                 color = MaterialTheme.colorScheme.onSurface
                             ),
-                            cursorBrush = androidx.compose.ui.graphics.SolidColor(
-                                MaterialTheme.colorScheme.primary
-                            ),
+                            cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
                             modifier = Modifier.fillMaxWidth()
                         )
                     }
@@ -254,15 +285,14 @@ fun CameraCaptureScreen(
                                 Icons.Filled.Close,
                                 contentDescription = "清除",
                                 modifier = Modifier.size(16.dp),
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                             )
                         }
                     }
                 }
 
                 if (selectedUris.isNotEmpty()) {
-                    // 缩略图队列
-                    androidx.compose.foundation.lazy.LazyRow(
+                    LazyRow(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
                         contentPadding = PaddingValues(horizontal = 16.dp)
@@ -276,7 +306,7 @@ fun CameraCaptureScreen(
                             ) {
                                 AsyncImage(
                                     model = uri,
-                                    contentDescription = "Thumbnail",
+                                    contentDescription = "已选图片 ${index + 1}，点击裁剪",
                                     contentScale = ContentScale.Crop,
                                     modifier = Modifier
                                         .fillMaxSize()
@@ -284,7 +314,10 @@ fun CameraCaptureScreen(
                                         .clickable { croppingUri = uri }
                                 )
                                 IconButton(
-                                    onClick = { selectedUris.remove(uri) },
+                                    onClick = {
+                                        ImageUtils.cleanupTempFiles(context, listOf(uri))
+                                        selectedUris = selectedUris.filterIndexed { i, _ -> i != index }
+                                    },
                                     modifier = Modifier
                                         .align(Alignment.TopEnd)
                                         .size(20.dp)
@@ -292,7 +325,7 @@ fun CameraCaptureScreen(
                                 ) {
                                     Icon(
                                         Icons.Filled.Close,
-                                        contentDescription = "Remove",
+                                        contentDescription = "移除",
                                         tint = MaterialTheme.colorScheme.error
                                     )
                                 }
@@ -307,7 +340,7 @@ fun CameraCaptureScreen(
                 ) {
                     if (selectedUris.isNotEmpty()) {
                         FloatingActionButton(
-                            onClick = { onImageSelected(selectedUris.toList(), notes.trim()) },
+                            onClick = { onImageSelected(selectedUris, notes.trim()) },
                             containerColor = MaterialTheme.colorScheme.primary,
                             contentColor = MaterialTheme.colorScheme.onPrimary
                         ) {
@@ -323,11 +356,11 @@ fun CameraCaptureScreen(
                     }
 
                     FloatingActionButton(
-                        onClick = { 
+                        onClick = {
                             if (selectedUris.size >= maxImages) {
                                 errorMessage = "最多只能选择 $maxImages 张图片"
                             } else {
-                                galleryLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) 
+                                galleryLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
                             }
                         },
                         containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
@@ -342,7 +375,10 @@ fun CameraCaptureScreen(
 
                     LargeFloatingActionButton(
                         onClick = {
-                            if (!hasCameraPermission) return@LargeFloatingActionButton
+                            if (!hasCameraPermission) {
+                                permissionLauncher.launch(Manifest.permission.CAMERA)
+                                return@LargeFloatingActionButton
+                            }
                             if (selectedUris.size >= maxImages) {
                                 errorMessage = "最多只能选择 $maxImages 张图片"
                                 return@LargeFloatingActionButton
@@ -354,8 +390,9 @@ fun CameraCaptureScreen(
                                 ContextCompat.getMainExecutor(context),
                                 object : ImageCapture.OnImageSavedCallback {
                                     override fun onImageSaved(output: ImageCapture.OutputFileResults) {
-                                        selectedUris.add(Uri.fromFile(photoFile))
+                                        selectedUris = selectedUris + Uri.fromFile(photoFile)
                                     }
+
                                     override fun onError(exception: ImageCaptureException) {
                                         errorMessage = "拍照失败: ${exception.message}"
                                     }
@@ -376,12 +413,9 @@ fun CameraCaptureScreen(
         }
     }
 
-    // 裁剪界面 (带动画和正确的状态保存)
     var lastCroppingUri by remember { mutableStateOf<Uri?>(null) }
     LaunchedEffect(croppingUri) {
-        if (croppingUri != null) {
-            lastCroppingUri = croppingUri
-        }
+        if (croppingUri != null) lastCroppingUri = croppingUri
     }
 
     AnimatedVisibility(
@@ -395,7 +429,8 @@ fun CameraCaptureScreen(
                 onCropDone = { croppedUri ->
                     val idx = selectedUris.indexOf(uri)
                     if (idx >= 0) {
-                        selectedUris[idx] = croppedUri
+                        ImageUtils.cleanupTempFiles(context, listOf(uri))
+                        selectedUris = selectedUris.toMutableList().apply { set(idx, croppedUri) }
                     }
                     croppingUri = null
                 },
