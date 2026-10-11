@@ -1,22 +1,29 @@
 package com.example.nutritracker.feature.home
 
+import android.content.Context
+import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.nutritracker.data.dao.IntakeWithMeal
 import com.example.nutritracker.data.entity.*
 import com.example.nutritracker.data.repository.*
+import com.example.nutritracker.feature.camera.AiAnalysisManager
+import com.example.nutritracker.feature.camera.AnalysisTask
+import com.example.nutritracker.feature.camera.NutritionResult
 import com.example.nutritracker.util.*
+import com.example.nutritracker.widget.NutriTrackerWidgetUpdater
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.LocalDateTime
 import javax.inject.Inject
-import com.example.nutritracker.feature.camera.AiAnalysisManager
 
 data class MealSection(
     val type: IntakeType,
-    val intakes: List<Intake>,
-    val meals: Map<Long, Meal>,
+    val items: List<IntakeWithMeal>,
     val totalKcal: Double,
     val totalCarbs: Double,
     val totalFat: Double,
@@ -25,6 +32,7 @@ data class MealSection(
 
 data class HomeUiState(
     val isLoading: Boolean = true,
+    val logicalToday: LocalDate = LocalDate.now(),
     val calorieGoal: Double = 0.0,
     val caloriesSupplied: Double = 0.0,
     val caloriesBurned: Double = 0.0,
@@ -37,17 +45,23 @@ data class HomeUiState(
     val proteinTracked: Double = 0.0,
     val waterMl: Int = 0,
     val waterGoalMl: Int = 2000,
+    val waterEntries: List<WaterIntake> = emptyList(),
+    val waterQuickAmounts: List<Int> = listOf(150, 250, 350, 500),
     val mealSections: List<MealSection> = emptyList(),
     val activities: List<UserActivityEntity> = emptyList(),
     val user: User? = null,
     val isBelowKcalFloor: Boolean = false,
-    val recommendedFloor: Double = 0.0
+    val recommendedFloor: Double = 0.0,
+    val useKj: Boolean = false,
+    val dayMicros: MicronutrientTotals = MicronutrientTotals(),
+    val weeklyAvgMicros: MicronutrientTotals = MicronutrientTotals()
 )
 
+@OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
 class HomeViewModel @Inject constructor(
+    @ApplicationContext private val appContext: Context,
     private val userRepo: UserRepository,
-    private val mealRepo: MealRepository,
     private val intakeRepo: IntakeRepository,
     private val trackedDayRepo: TrackedDayRepository,
     private val activityRepo: ActivityRepository,
@@ -57,214 +71,259 @@ class HomeViewModel @Inject constructor(
     private val aiAnalysisManager: AiAnalysisManager
 ) : ViewModel() {
 
-    private val _state = MutableStateFlow(HomeUiState())
-    val state: StateFlow<HomeUiState> = _state.asStateFlow()
+    private data class HomePrefs(
+        val dayBoundaryMinutes: Int,
+        val kcalAdjustment: Double,
+        val carbPct: Double,
+        val fatPct: Double,
+        val proteinPct: Double,
+        val waterGoalMl: Int,
+        val waterQuickAmounts: List<Int>,
+        val useKj: Boolean
+    )
 
-    val aiIsAnalyzing: StateFlow<Boolean> = aiAnalysisManager.isAnalyzing
-    val aiAnalysisError: StateFlow<String?> = aiAnalysisManager.analysisError
-    val aiSuccessEvent: SharedFlow<String> = aiAnalysisManager.analysisSuccess
+    private val resumeTick = MutableStateFlow(0L)
 
-    fun clearAiError() {
-        aiAnalysisManager.clearError()
+    private val prefsFlow: Flow<HomePrefs> = combine(
+        combine(
+            settingsRepo.dayBoundaryMinutes,
+            settingsRepo.kcalAdjustment,
+            settingsRepo.carbPct,
+            settingsRepo.fatPct
+        ) { a, b, c, d -> listOf(a, b, c, d) },
+        combine(
+            settingsRepo.proteinPct,
+            settingsRepo.waterGoalMl,
+            settingsRepo.waterQuickAmounts,
+            settingsRepo.useKj
+        ) { p, wg, wq, kj -> listOf(p, wg, wq, kj) }
+    ) { first, second ->
+        @Suppress("UNCHECKED_CAST")
+        HomePrefs(
+            dayBoundaryMinutes = first[0] as Int,
+            kcalAdjustment = first[1] as Double,
+            carbPct = first[2] as Double,
+            fatPct = first[3] as Double,
+            proteinPct = second[0] as Double,
+            waterGoalMl = second[1] as Int,
+            waterQuickAmounts = second[2] as List<Int>,
+            useKj = second[3] as Boolean
+        )
     }
 
-    val onboardingDone: Flow<Boolean> = settingsRepo.onboardingDone
-
-    init {
-        // 监听设置变化，自动刷新首页
-        viewModelScope.launch {
-            combine(
-                settingsRepo.kcalAdjustment,
-                settingsRepo.carbPct,
-                settingsRepo.fatPct
-            ) { a, b, c -> Triple(a, b, c) }
-            .collect { refresh() }
-        }
-        viewModelScope.launch {
-            combine(
-                settingsRepo.proteinPct,
-                settingsRepo.waterGoalMl,
-                settingsRepo.dayBoundaryMinutes
-            ) { a, b, c -> Triple(a, b, c) }
-            .collect { refresh() }
-        }
-        // 监听后台 AI 识图分析成功事件，自动刷新首页数据
-        viewModelScope.launch {
-            aiAnalysisManager.analysisSuccess.collect {
-                refresh()
+    val state: StateFlow<HomeUiState> = combine(prefsFlow, resumeTick) { prefs, _ ->
+        prefs to dayBoundaryCalc.currentLogicalDay(prefs.dayBoundaryMinutes)
+    }.flatMapLatest { (prefs, today) ->
+        val dayOffset = prefs.dayBoundaryMinutes
+        combine(
+            userRepo.getUserFlow(),
+            intakeRepo.getWithMealByLogicalDayFlow(today, dayOffset),
+            intakeRepo.getWithMealByLogicalDayRangeFlow(today.minusDays(6), today, dayOffset),
+            activityRepo.getByLogicalDayFlow(today, dayOffset),
+            waterRepo.getByLogicalDayFlow(today, dayOffset)
+        ) { user, todayIntakes, weekIntakes, activities, waterEntries ->
+            if (user == null) {
+                return@combine HomeUiState(
+                    isLoading = false,
+                    logicalToday = today,
+                    waterGoalMl = prefs.waterGoalMl,
+                    waterQuickAmounts = prefs.waterQuickAmounts,
+                    useKj = prefs.useKj
+                )
             }
-        }
-        refresh()
-    }
 
-    fun refresh() {
-        viewModelScope.launch {
-            val user = userRepo.getUser() ?: run {
-                _state.update { it.copy(isLoading = false) }
-                return@launch
-            }
-            val offset = settingsRepo.dayBoundaryMinutes.first()
-            val today = dayBoundaryCalc.currentLogicalDay(offset)
-            val kcalAdj = settingsRepo.kcalAdjustment.first()
-            val carbPct = settingsRepo.carbPct.first()
-            val fatPct = settingsRepo.fatPct.first()
-            val proteinPct = settingsRepo.proteinPct.first()
-            val waterGoal = settingsRepo.waterGoalMl.first()
-
-            val activityBurn = activityRepo.getTotalBurnedByLogicalDay(today, offset)
+            val activityBurn = activities.sumOf { it.burnedKcal }
             val calorieGoal = CalorieGoalCalc.getTotalKcalGoal(
                 user = user,
-                userKcalAdjustment = kcalAdj,
-                totalKcalActivities = activityBurn
+                userKcalAdjustment = prefs.kcalAdjustment,
+                totalKcalActivities = activityBurn,
+                referenceDate = today
             )
-            val carbsGoal = MacroCalc.getCarbsGoal(calorieGoal, carbPct)
-            val fatGoal = MacroCalc.getFatGoal(calorieGoal, fatPct)
-            val proteinGoal = MacroCalc.getProteinGoal(calorieGoal, proteinPct)
+            val carbsGoal = MacroCalc.getCarbsGoal(calorieGoal, prefs.carbPct)
+            val fatGoal = MacroCalc.getFatGoal(calorieGoal, prefs.fatPct)
+            val proteinGoal = MacroCalc.getProteinGoal(calorieGoal, prefs.proteinPct)
 
-            // Ensure TrackedDay exists with correct goals
-            trackedDayRepo.ensureDay(today, calorieGoal, carbsGoal, fatGoal, proteinGoal)
-
-            // Build meal sections
+            val grouped = todayIntakes.groupBy { it.intake.intakeType }
             val sections = IntakeType.entries.map { type ->
-                val intakes = intakeRepo.getByTypeAndLogicalDay(type, today, offset)
-                val mealIds = intakes.map { it.mealId }.distinct()
-                val meals = mealIds.mapNotNull { id -> mealRepo.getById(id) }.associateBy { it.id }
+                val list = grouped[type].orEmpty()
                 MealSection(
-                    type = type, intakes = intakes, meals = meals,
-                    totalKcal = intakes.sumOf { calcKcal(it, meals) },
-                    totalCarbs = intakes.sumOf { calcCarbs(it, meals) },
-                    totalFat = intakes.sumOf { calcFat(it, meals) },
-                    totalProtein = intakes.sumOf { calcProtein(it, meals) }
+                    type = type,
+                    items = list,
+                    totalKcal = list.sumOf { it.meal.energyKcal100 * it.intake.amount / 100.0 },
+                    totalCarbs = list.sumOf { it.meal.carbohydrates100 * it.intake.amount / 100.0 },
+                    totalFat = list.sumOf { it.meal.fat100 * it.intake.amount / 100.0 },
+                    totalProtein = list.sumOf { it.meal.proteins100 * it.intake.amount / 100.0 }
                 )
             }
 
             val totalSupplied = sections.sumOf { it.totalKcal }
-            val totalCarbsTracked = sections.sumOf { it.totalCarbs }
-            val totalFatTracked = sections.sumOf { it.totalFat }
-            val totalProteinTracked = sections.sumOf { it.totalProtein }
-            val activities = activityRepo.getByLogicalDay(today, offset)
-            val waterMl = waterRepo.getTotalMlByLogicalDay(today, offset)
+            val totalCarbs = sections.sumOf { it.totalCarbs }
+            val totalFat = sections.sumOf { it.totalFat }
+            val totalProtein = sections.sumOf { it.totalProtein }
+            val waterMl = waterEntries.sumOf { it.amountMl }
 
-            // Reconcile TrackedDay
-            trackedDayRepo.reconcileDay(today, totalSupplied, totalCarbsTracked, totalFatTracked, totalProteinTracked)
-
-            _state.update {
-                HomeUiState(
-                    isLoading = false,
-                    calorieGoal = calorieGoal,
-                    caloriesSupplied = totalSupplied,
-                    caloriesBurned = activityBurn,
-                    caloriesLeft = calorieGoal - totalSupplied,
-                    carbsGoal = carbsGoal, fatGoal = fatGoal, proteinGoal = proteinGoal,
-                    carbsTracked = totalCarbsTracked, fatTracked = totalFatTracked, proteinTracked = totalProteinTracked,
-                    waterMl = waterMl, waterGoalMl = waterGoal,
-                    mealSections = sections, activities = activities, user = user,
-                    isBelowKcalFloor = CalorieGoalCalc.isBelowRecommendedFloor(calorieGoal, user),
-                    recommendedFloor = CalorieGoalCalc.recommendedFloor(user)
-                )
-            }
+            HomeUiState(
+                isLoading = false,
+                logicalToday = today,
+                calorieGoal = calorieGoal,
+                caloriesSupplied = totalSupplied,
+                caloriesBurned = activityBurn,
+                caloriesLeft = calorieGoal - totalSupplied,
+                carbsGoal = carbsGoal,
+                fatGoal = fatGoal,
+                proteinGoal = proteinGoal,
+                carbsTracked = totalCarbs,
+                fatTracked = totalFat,
+                proteinTracked = totalProtein,
+                waterMl = waterMl,
+                waterGoalMl = prefs.waterGoalMl,
+                waterEntries = waterEntries,
+                waterQuickAmounts = prefs.waterQuickAmounts,
+                mealSections = sections,
+                activities = activities,
+                user = user,
+                isBelowKcalFloor = CalorieGoalCalc.isBelowRecommendedFloor(calorieGoal, user),
+                recommendedFloor = CalorieGoalCalc.recommendedFloor(user),
+                useKj = prefs.useKj,
+                dayMicros = sumMicronutrients(todayIntakes, divisor = 1.0),
+                weeklyAvgMicros = sumMicronutrients(weekIntakes, divisor = 7.0)
+            )
         }
+    }.onEach { ui ->
+        if (!ui.isLoading && ui.user != null && ui.calorieGoal > 0) {
+            trackedDayRepo.saveGoalSnapshot(
+                date = ui.logicalToday,
+                calorieGoal = ui.calorieGoal,
+                carbGoal = ui.carbsGoal,
+                fatGoal = ui.fatGoal,
+                proteinGoal = ui.proteinGoal,
+                forceUpdateGoals = true
+            )
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), HomeUiState())
+
+    val aiTasks: StateFlow<List<AnalysisTask>> = aiAnalysisManager.tasks
+    val aiActiveCount: StateFlow<Int> = aiAnalysisManager.activeJobCount
+    val aiPendingConfirmTasks: StateFlow<List<AnalysisTask>> = aiAnalysisManager.pendingConfirmTasks
+    val aiFailedTasks: StateFlow<List<AnalysisTask>> = aiAnalysisManager.failedTasks
+    val aiAnalysisError: StateFlow<String?> = aiAnalysisManager.analysisError
+    val aiSuccessEvent: SharedFlow<String> = aiAnalysisManager.analysisSuccess
+
+    fun onResumed() {
+        resumeTick.value = System.currentTimeMillis()
     }
+
+    fun clearAiError() = aiAnalysisManager.clearError()
 
     fun addWater(amountMl: Int) {
         viewModelScope.launch {
             waterRepo.upsert(WaterIntake(amountMl = amountMl, dateTime = LocalDateTime.now()))
-            refresh()
+            NutriTrackerWidgetUpdater.enqueueUpdate(appContext)
+        }
+    }
+
+    fun deleteWaterEntry(entry: WaterIntake) {
+        viewModelScope.launch {
+            waterRepo.deleteById(entry.id)
+            NutriTrackerWidgetUpdater.enqueueUpdate(appContext)
         }
     }
 
     fun undoLastWaterIntake() {
         viewModelScope.launch {
-            val latest = waterRepo.getLatest()
-            if (latest != null) {
-                waterRepo.deleteById(latest.id)
-                refresh()
+            val offset = settingsRepo.dayBoundaryMinutes.first()
+            val today = dayBoundaryCalc.currentLogicalDay(offset)
+            if (waterRepo.undoLastInLogicalDay(today, offset)) {
+                NutriTrackerWidgetUpdater.enqueueUpdate(appContext)
             }
         }
     }
 
     fun deleteIntake(intake: Intake) {
         viewModelScope.launch {
-            // 先获取 Meal 数据
-            val meal = mealRepo.getById(intake.mealId)
-            // 先从 TrackedDay 移除卡路里
-            if (meal != null) {
-                val offset = settingsRepo.dayBoundaryMinutes.first()
-                val today = dayBoundaryCalc.logicalDayOf(intake.dateTime, offset)
-                trackedDayRepo.removeCalories(
-                    today,
-                    meal.energyKcal100 * intake.amount / 100.0,
-                    meal.carbohydrates100 * intake.amount / 100.0,
-                    meal.fat100 * intake.amount / 100.0,
-                    meal.proteins100 * intake.amount / 100.0
-                )
-            }
-            // 再删除摄入记录
-            intakeRepo.delete(intake)
-            refresh()
+            intakeRepo.deleteById(intake.id)
+            NutriTrackerWidgetUpdater.enqueueUpdate(appContext)
         }
-    }
-
-    /**
-     * 更新摄入记录的份量
-     */
-    fun updateIntakeAmount(intake: Intake, newAmount: Double) {
-        viewModelScope.launch {
-            val meal = mealRepo.getById(intake.mealId) ?: return@launch
-            val offset = settingsRepo.dayBoundaryMinutes.first()
-            val today = dayBoundaryCalc.logicalDayOf(intake.dateTime, offset)
-
-            // 移除旧的卡路里
-            trackedDayRepo.removeCalories(
-                today,
-                meal.energyKcal100 * intake.amount / 100.0,
-                meal.carbohydrates100 * intake.amount / 100.0,
-                meal.fat100 * intake.amount / 100.0,
-                meal.proteins100 * intake.amount / 100.0
-            )
-
-            // 更新摄入记录
-            val updatedIntake = intake.copy(amount = newAmount)
-            intakeRepo.upsert(updatedIntake)
-
-            // 添加新的卡路里
-            trackedDayRepo.addCalories(
-                today,
-                meal.energyKcal100 * newAmount / 100.0,
-                meal.carbohydrates100 * newAmount / 100.0,
-                meal.fat100 * newAmount / 100.0,
-                meal.proteins100 * newAmount / 100.0
-            )
-
-            refresh()
-        }
-    }
-
-    fun analyzeAndCreateMeals(context: android.content.Context, uris: List<android.net.Uri>, intakeType: IntakeType, notes: String = "", date: LocalDate = LocalDate.now()) {
-        aiAnalysisManager.analyzeAndCreateMeals(context, uris, intakeType, notes, date)
     }
 
     fun deleteActivity(activity: UserActivityEntity) {
         viewModelScope.launch {
-            activityRepo.delete(activity)
-            refresh()
+            activityRepo.deleteById(activity.id)
+            NutriTrackerWidgetUpdater.enqueueUpdate(appContext)
         }
     }
 
-    private fun calcKcal(intake: Intake, meals: Map<Long, Meal>): Double {
-        val meal = meals[intake.mealId] ?: return 0.0
-        return meal.energyKcal100 * intake.amount / 100.0
+    fun analyzeAndCreateMeals(
+        context: Context,
+        uris: List<Uri>,
+        intakeType: IntakeType,
+        notes: String = "",
+        date: LocalDate? = null
+    ) {
+        viewModelScope.launch {
+            val offset = settingsRepo.dayBoundaryMinutes.first()
+            val targetDate = date ?: dayBoundaryCalc.currentLogicalDay(offset)
+            aiAnalysisManager.analyzeAndCreateMeals(context, uris, intakeType, notes, targetDate)
+        }
     }
-    private fun calcCarbs(intake: Intake, meals: Map<Long, Meal>): Double {
-        val meal = meals[intake.mealId] ?: return 0.0
-        return meal.carbohydrates100 * intake.amount / 100.0
+
+    fun analyzeTextMeal(description: String, intakeType: IntakeType) {
+        viewModelScope.launch {
+            val offset = settingsRepo.dayBoundaryMinutes.first()
+            val targetDate = dayBoundaryCalc.currentLogicalDay(offset)
+            aiAnalysisManager.analyzeTextMeal(description, intakeType, targetDate)
+        }
     }
-    private fun calcFat(intake: Intake, meals: Map<Long, Meal>): Double {
-        val meal = meals[intake.mealId] ?: return 0.0
-        return meal.fat100 * intake.amount / 100.0
+
+    fun cancelAiTask(taskId: Int) = aiAnalysisManager.cancelTask(taskId)
+    fun retryAiTask(taskId: Int) = aiAnalysisManager.retryTask(taskId)
+    fun dismissAiTask(taskId: Int) = aiAnalysisManager.dismissTask(taskId)
+
+    fun confirmAiTask(
+        taskId: Int,
+        mealName: String,
+        intakeType: IntakeType,
+        date: LocalDate,
+        multiplier: Double,
+        items: List<NutritionResult.FoodItem>,
+        fallbackResult: NutritionResult,
+        thumbnailPath: String?
+    ) {
+        aiAnalysisManager.confirmTask(
+            taskId = taskId,
+            mealName = mealName,
+            intakeType = intakeType,
+            date = date,
+            multiplier = multiplier,
+            editedItems = items,
+            fallbackResult = fallbackResult,
+            thumbnailPath = thumbnailPath
+        )
     }
-    private fun calcProtein(intake: Intake, meals: Map<Long, Meal>): Double {
-        val meal = meals[intake.mealId] ?: return 0.0
-        return meal.proteins100 * intake.amount / 100.0
+
+    companion object {
+        fun sumMicronutrients(intakes: List<IntakeWithMeal>, divisor: Double): MicronutrientTotals {
+            val d = divisor.coerceAtLeast(1.0)
+            var fiber = 0.0
+            var sugars = 0.0
+            var satFat = 0.0
+            var sodium = 0.0
+            var cholesterol = 0.0
+            intakes.forEach { item ->
+                val factor = item.intake.amount / 100.0
+                fiber += (item.meal.fiber100 ?: 0.0) * factor
+                sugars += (item.meal.sugars100 ?: 0.0) * factor
+                satFat += (item.meal.saturatedFat100 ?: 0.0) * factor
+                sodium += (item.meal.sodium100 ?: 0.0) * factor
+                cholesterol += (item.meal.cholesterol100 ?: 0.0) * factor
+            }
+            return MicronutrientTotals(
+                fiberG = fiber / d,
+                sugarsG = sugars / d,
+                saturatedFatG = satFat / d,
+                sodiumMg = sodium / d,
+                cholesterolMg = cholesterol / d
+            )
+        }
     }
 }
