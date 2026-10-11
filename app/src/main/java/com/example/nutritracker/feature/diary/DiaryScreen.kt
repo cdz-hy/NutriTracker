@@ -2,9 +2,9 @@ package com.example.nutritracker.feature.diary
 
 import androidx.compose.animation.*
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
@@ -14,81 +14,74 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.compose.foundation.clickable
-import androidx.compose.ui.draw.clip
+import coil.compose.AsyncImage
+import coil.request.ImageRequest
+import com.example.nutritracker.data.dao.IntakeWithMeal
 import com.example.nutritracker.data.entity.IntakeType
-import com.example.nutritracker.feature.home.mealTypeIcon
-import com.example.nutritracker.feature.home.mealTypeLabel
 import com.example.nutritracker.ui.components.*
 import com.example.nutritracker.ui.theme.*
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.compose.LocalLifecycleOwner
-import androidx.lifecycle.repeatOnLifecycle
+import com.example.nutritracker.util.UnitCalc
+import java.io.File
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
 import java.util.Locale
 import kotlin.math.roundToInt
-import java.io.File
-import androidx.compose.ui.platform.LocalContext
-import coil.compose.AsyncImage
-import coil.request.ImageRequest
-import androidx.compose.ui.layout.ContentScale
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DiaryScreen(
     onNavigateToSources: () -> Unit,
-    onNavigateToEdit: (Long, Int, Long) -> Unit = { _, _, _ -> },
+    onNavigateToEdit: (Long, Long, Int, Long) -> Unit = { _, _, _, _ -> },
     onNavigateToAddMeal: (Int, Long) -> Unit = { _, _ -> },
-    onNavigateToAddActivity: () -> Unit = {},
+    onNavigateToAddActivity: (Long) -> Unit = {},
     vm: DiaryViewModel = hiltViewModel()
 ) {
     val state by vm.state.collectAsStateWithLifecycle()
-    var selectedDate by remember { mutableStateOf(LocalDate.now()) }
+    val selectedDate by vm.selectedDate.collectAsStateWithLifecycle()
     var showDatePicker by remember { mutableStateOf(false) }
+    var showWaterDetail by remember { mutableStateOf(false) }
 
-    LaunchedEffect(selectedDate) { vm.loadDay(selectedDate) }
-
-    // 每次页面可见时重新加载数据（从编辑/新增页面返回时刷新）
-    val lifecycleOwner = LocalLifecycleOwner.current
-    LaunchedEffect(lifecycleOwner) {
-        lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
-            vm.loadDay(selectedDate)
-        }
-    }
-
-    // 整体使用单一 LazyColumn，消除嵌套滚动问题
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
             .padding(horizontal = Dimens.ContentPadding),
         verticalArrangement = Arrangement.spacedBy(Dimens.CardSpacing),
-        contentPadding = PaddingValues(top = 8.dp, bottom = 16.dp)
+        contentPadding = PaddingValues(top = 8.dp, bottom = 24.dp)
     ) {
-        // ── 标题 ─────────────────────────────────────────────────────
         item(key = "header") {
-            Text(
-                text = "日记",
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.padding(vertical = 8.dp)
-            )
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 8.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "日记",
+                    style = MaterialTheme.typography.headlineMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                if (!state.isLogicalToday) {
+                    TextButton(onClick = { vm.selectDate(LocalDate.now()) }) {
+                        Text("回到今天")
+                    }
+                }
+            }
         }
 
-        // ── 日期选择器 ───────────────────────────────────────────────
+        // 日期选择器
         item(key = "date_selector") {
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceContainerLow
-                ),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
                 elevation = CardDefaults.cardElevation(defaultElevation = Dimens.CardElevation),
                 shape = MaterialTheme.shapes.large
             ) {
@@ -99,7 +92,7 @@ fun DiaryScreen(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    IconButton(onClick = { selectedDate = selectedDate.minusDays(1) }) {
+                    IconButton(onClick = { vm.selectDate(selectedDate.minusDays(1)) }) {
                         Icon(
                             Icons.AutoMirrored.Filled.KeyboardArrowLeft,
                             contentDescription = "前一天",
@@ -107,19 +100,20 @@ fun DiaryScreen(
                         )
                     }
 
-                    // 日期文本带动画
                     AnimatedContent(
                         targetState = selectedDate,
                         transitionSpec = {
                             val isForward = targetState > initialState
-                            val enter = fadeIn(tween(M3Duration.Medium2, easing = M3Easing.Decelerate)) + slideInHorizontally(
-                                initialOffsetX = { if (isForward) it / 4 else -it / 4 },
-                                animationSpec = tween(M3Duration.Medium2, easing = M3Easing.Decelerate)
-                            )
-                            val exit = fadeOut(tween(M3Duration.Short3, easing = M3Easing.Accelerate)) + slideOutHorizontally(
-                                targetOffsetX = { if (isForward) -it / 4 else it / 4 },
-                                animationSpec = tween(M3Duration.Short3, easing = M3Easing.Accelerate)
-                            )
+                            val enter = fadeIn(tween(M3Duration.Medium2, easing = M3Easing.Decelerate)) +
+                                slideInHorizontally(
+                                    initialOffsetX = { if (isForward) it / 4 else -it / 4 },
+                                    animationSpec = tween(M3Duration.Medium2, easing = M3Easing.Decelerate)
+                                )
+                            val exit = fadeOut(tween(M3Duration.Short3, easing = M3Easing.Accelerate)) +
+                                slideOutHorizontally(
+                                    targetOffsetX = { if (isForward) -it / 4 else it / 4 },
+                                    animationSpec = tween(M3Duration.Short3, easing = M3Easing.Accelerate)
+                                )
                             enter togetherWith exit
                         },
                         label = "dateAnimation"
@@ -146,7 +140,7 @@ fun DiaryScreen(
                         }
                     }
 
-                    IconButton(onClick = { selectedDate = selectedDate.plusDays(1) }) {
+                    IconButton(onClick = { vm.selectDate(selectedDate.plusDays(1)) }) {
                         Icon(
                             Icons.AutoMirrored.Filled.KeyboardArrowRight,
                             contentDescription = "后一天",
@@ -157,7 +151,6 @@ fun DiaryScreen(
             }
         }
 
-        // ── 加载状态 ─────────────────────────────────────────────────
         if (state.isLoading) {
             item(key = "loading") {
                 Box(
@@ -166,29 +159,32 @@ fun DiaryScreen(
                         .height(200.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(48.dp),
-                        color = MaterialTheme.colorScheme.primary
-                    )
+                    CircularProgressIndicator(modifier = Modifier.size(48.dp), color = MaterialTheme.colorScheme.primary)
                 }
             }
         } else {
-            // ── 卡路里总览 ───────────────────────────────────────────
+            val overviewTitle = if (state.isLogicalToday) {
+                "今日热量"
+            } else {
+                selectedDate.format(DateTimeFormatter.ofPattern("MM月dd日热量"))
+            }
+
             item(key = "calorie_overview") {
                 StaggeredFadeIn(index = 0) {
                     CalorieOverviewCard(
+                        title = overviewTitle,
                         goal = state.calorieGoal,
                         supplied = state.caloriesTracked,
                         burned = state.caloriesBurned,
                         left = state.calorieGoal - state.caloriesTracked,
-                        isBelowFloor = false,
-                        floor = 0.0,
+                        isBelowFloor = state.isBelowKcalFloor,
+                        floor = state.recommendedFloor,
+                        useKj = state.useKj,
                         onNavigateToSources = onNavigateToSources
                     )
                 }
             }
 
-            // ── 宏量营养素 ───────────────────────────────────────────
             item(key = "macro_progress") {
                 StaggeredFadeIn(index = 1) {
                     MacroProgressRow(
@@ -202,48 +198,64 @@ fun DiaryScreen(
                 }
             }
 
-            // ── 饮水记录 ─────────────────────────────────────────────
-            item(key = "water_progress") {
+            // IOM 膳食营养参考面板 (DRI Panel)
+            item(key = "dri_panel") {
                 StaggeredFadeIn(index = 2) {
-                    WaterCard(
-                        currentMl = state.waterMl,
-                        goalMl = state.waterGoalMl,
-                        onAdd = { vm.addWater(250) },
-                        onUndo = { vm.undoLastWater() }
+                    DriNutrientPanel(
+                        dayTotals = state.dayMicros,
+                        weeklyAvgTotals = state.weeklyAvgMicros,
+                        user = state.user,
+                        onNavigateToSources = onNavigateToSources
                     )
                 }
             }
 
-            // ── 按餐类型分组 ─────────────────────────────────────────
-            var sectionIdx = 3
+            item(key = "water_progress") {
+                StaggeredFadeIn(index = 3) {
+                    WaterCard(
+                        currentMl = state.waterMl,
+                        goalMl = state.waterGoalMl,
+                        quickAmounts = state.waterQuickAmounts,
+                        onAddAmount = { vm.addWater(it) },
+                        onUndo = { vm.undoLastWater() },
+                        onOpenDetail = { showWaterDetail = true }
+                    )
+                }
+            }
+
+            var sectionIdx = 4
             IntakeType.entries.forEach { type ->
-                val intakesForType = state.intakes.filter { it.intakeType == type }
+                val intakesForType = state.intakes.filter { it.intake.intakeType == type }
                 val headerIdx = sectionIdx++
                 item(key = "section_header_$type") {
                     StaggeredFadeIn(index = headerIdx) {
                         DiaryMealHeader(
                             type = type,
-                            totalKcal = intakesForType.sumOf { intake ->
-                                val meal = state.meals[intake.mealId]
-                                (meal?.energyKcal100 ?: 0.0) * intake.amount / 100.0
-                            },
+                            totalKcal = intakesForType.sumOf { it.meal.energyKcal100 * it.intake.amount / 100.0 },
+                            useKj = state.useKj,
                             onAddClick = { onNavigateToAddMeal(type.ordinal, selectedDate.toEpochDay()) }
                         )
                     }
                 }
                 if (intakesForType.isNotEmpty()) {
                     val itemsStartIdx = sectionIdx
-                    itemsIndexed(intakesForType, key = { _, it -> "diary_intake_${it.id}" }) { index, intake ->
-                        val meal = state.meals[intake.mealId]
+                    itemsIndexed(intakesForType, key = { _, it -> "diary_intake_${it.intake.id}" }) { index, item ->
                         StaggeredFadeIn(
                             modifier = Modifier.animateItem(),
                             index = itemsStartIdx + index
                         ) {
                             DiaryIntakeCard(
-                                intake = intake,
-                                meal = meal,
-                                onEdit = { onNavigateToEdit(meal?.id ?: 0, type.ordinal, selectedDate.toEpochDay()) },
-                                onDelete = { vm.deleteIntake(intake) }
+                                item = item,
+                                useKj = state.useKj,
+                                onEdit = {
+                                    onNavigateToEdit(
+                                        item.intake.id,
+                                        item.meal.id,
+                                        type.ordinal,
+                                        selectedDate.toEpochDay()
+                                    )
+                                },
+                                onDelete = { vm.deleteIntake(item.intake) }
                             )
                         }
                     }
@@ -251,146 +263,64 @@ fun DiaryScreen(
                 }
             }
 
-            // ── 活动 ─────────────────────────────────────────────────
             val activityHeaderIdx = sectionIdx++
             item(key = "activity_header") {
                 StaggeredFadeIn(index = activityHeaderIdx) {
                     DiaryActivityHeader(
                         totalKcal = state.activities.sumOf { it.burnedKcal },
-                        onAddClick = onNavigateToAddActivity
+                        useKj = state.useKj,
+                        onAddClick = { onNavigateToAddActivity(selectedDate.toEpochDay()) }
                     )
                 }
             }
             if (state.activities.isNotEmpty()) {
                 val activityStartIdx = sectionIdx
                 itemsIndexed(state.activities, key = { _, it -> "diary_activity_${it.id}" }) { index, activity ->
-                    var showDeleteConfirm by remember { mutableStateOf(false) }
                     StaggeredFadeIn(
                         modifier = Modifier.animateItem(),
                         index = activityStartIdx + index
                     ) {
-                        Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.surfaceContainerLow
-                            ),
-                            elevation = CardDefaults.cardElevation(defaultElevation = Dimens.CardElevationLow),
-                            shape = MaterialTheme.shapes.medium
-                        ) {
-                            ListItem(
-                                headlineContent = {
-                                    Text(
-                                        text = activity.name,
-                                        style = MaterialTheme.typography.bodyLarge,
-                                        color = MaterialTheme.colorScheme.onSurface
-                                    )
-                                },
-                                supportingContent = {
-                                    Text(
-                                        text = "${activity.durationMinutes.roundToInt()}分钟 · ${activity.burnedKcal.roundToInt()} kcal",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                },
-                                leadingContent = {
-                                    Icon(
-                                        Icons.Filled.LocalFireDepartment,
-                                        contentDescription = null,
-                                        tint = BurnColor,
-                                        modifier = Modifier.size(Dimens.IconSizeMedium)
-                                    )
-                                },
-                                trailingContent = {
-                                    IconButton(
-                                        onClick = { showDeleteConfirm = true },
-                                        modifier = Modifier.size(32.dp)
-                                    ) {
-                                        Icon(
-                                            Icons.Filled.Delete,
-                                            contentDescription = "删除",
-                                            modifier = Modifier.size(18.dp),
-                                            tint = MaterialTheme.colorScheme.error
-                                        )
-                                    }
-                                },
-                                colors = ListItemDefaults.colors(
-                                    containerColor = MaterialTheme.colorScheme.surfaceContainerLow
-                                )
-                            )
-                        }
-                    }
-
-                    if (showDeleteConfirm) {
-                        AlertDialog(
-                            onDismissRequest = { showDeleteConfirm = false },
-                            title = { Text("删除这条活动？") },
-                            text = { Text("将删除 \"${activity.name}\" 的活动记录") },
-                            confirmButton = {
-                                TextButton(
-                                    onClick = {
-                                        showDeleteConfirm = false
-                                        vm.deleteActivity(activity)
-                                    },
-                                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
-                                ) { Text("删除") }
-                            },
-                            dismissButton = {
-                                TextButton(onClick = { showDeleteConfirm = false }) { Text("取消") }
-                            }
+                        ActivityItem(
+                            activity = activity,
+                            useKj = state.useKj,
+                            onDelete = { vm.deleteActivity(activity) }
                         )
                     }
                 }
-                sectionIdx += state.activities.size
             }
         }
     }
 
     if (showDatePicker) {
-        val datePickerState = rememberDatePickerState(
-            initialSelectedDateMillis = selectedDate.toEpochDay() * 86400000L
+        AppDatePickerDialog(
+            initialDate = selectedDate,
+            onDismiss = { showDatePicker = false },
+            onConfirm = {
+                vm.selectDate(it)
+                showDatePicker = false
+            }
         )
+    }
 
-        DatePickerDialog(
-            onDismissRequest = { showDatePicker = false },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        datePickerState.selectedDateMillis?.let { millis ->
-                            selectedDate = LocalDate.ofEpochDay(millis / 86400000L)
-                        }
-                        showDatePicker = false
-                    }
-                ) {
-                    Text("确定")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showDatePicker = false }) {
-                    Text("取消")
-                }
-            },
-            colors = DatePickerDefaults.colors(
-                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
-            )
-        ) {
-            DatePicker(
-                state = datePickerState,
-                colors = DatePickerDefaults.colors(
-                    containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-                    selectedDayContainerColor = MaterialTheme.colorScheme.primary,
-                    selectedDayContentColor = MaterialTheme.colorScheme.onPrimary,
-                    todayContentColor = MaterialTheme.colorScheme.primary,
-                    todayDateBorderColor = MaterialTheme.colorScheme.primary
-                )
-            )
-        }
+    if (showWaterDetail) {
+        WaterDetailDialog(
+            entries = state.waterEntries,
+            goalMl = state.waterGoalMl,
+            quickAmounts = state.waterQuickAmounts,
+            onAddWater = { vm.addWater(it) },
+            onDeleteEntry = { vm.deleteWaterEntry(it) },
+            onDismiss = { showWaterDetail = false }
+        )
     }
 }
 
-// ── 日记餐食分组头 ──────────────────────────────────────────────────────────
-
 @Composable
-private fun DiaryMealHeader(type: IntakeType, totalKcal: Double, onAddClick: (() -> Unit)? = null) {
+private fun DiaryMealHeader(
+    type: IntakeType,
+    totalKcal: Double,
+    useKj: Boolean,
+    onAddClick: () -> Unit
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -412,28 +342,29 @@ private fun DiaryMealHeader(type: IntakeType, totalKcal: Double, onAddClick: (()
         )
         Spacer(modifier = Modifier.weight(1f))
         Text(
-            text = "${totalKcal.roundToInt()} kcal",
+            text = UnitCalc.formatEnergy(totalKcal, useKj),
             style = MaterialTheme.typography.bodySmall,
             fontWeight = FontWeight.Medium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
-        if (onAddClick != null) {
-            IconButton(onClick = onAddClick, modifier = Modifier.size(28.dp)) {
-                Icon(
-                    Icons.Filled.Add,
-                    contentDescription = "添加",
-                    modifier = Modifier.size(18.dp),
-                    tint = MaterialTheme.colorScheme.primary
-                )
-            }
+        IconButton(onClick = onAddClick, modifier = Modifier.size(28.dp)) {
+            Icon(
+                Icons.Filled.Add,
+                contentDescription = "添加",
+                modifier = Modifier.size(18.dp),
+                tint = MaterialTheme.colorScheme.primary
+            )
         }
     }
 }
 
-// ── 日记活动头 ──────────────────────────────────────────────────────────────
-
 @Composable
-private fun DiaryActivityHeader(totalKcal: Double, onAddClick: (() -> Unit)? = null) {
+private fun DiaryActivityHeader(
+    totalKcal: Double,
+    useKj: Boolean,
+    onAddClick: () -> Unit
+) {
+    val burnColor = if (LocalUseDarkTheme.current) BurnColorDark else BurnColor
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -445,7 +376,7 @@ private fun DiaryActivityHeader(totalKcal: Double, onAddClick: (() -> Unit)? = n
             Icons.Filled.DirectionsRun,
             contentDescription = null,
             modifier = Modifier.size(Dimens.IconSizeMedium),
-            tint = BurnColor
+            tint = burnColor
         )
         Text(
             text = "活动",
@@ -455,47 +386,46 @@ private fun DiaryActivityHeader(totalKcal: Double, onAddClick: (() -> Unit)? = n
         )
         Spacer(modifier = Modifier.weight(1f))
         Text(
-            text = "${totalKcal.roundToInt()} kcal",
+            text = UnitCalc.formatEnergy(totalKcal, useKj),
             style = MaterialTheme.typography.bodySmall,
             fontWeight = FontWeight.Medium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
-        if (onAddClick != null) {
-            IconButton(onClick = onAddClick, modifier = Modifier.size(28.dp)) {
-                Icon(
-                    Icons.Filled.Add,
-                    contentDescription = "添加",
-                    modifier = Modifier.size(18.dp),
-                    tint = BurnColor
-                )
-            }
+        IconButton(onClick = onAddClick, modifier = Modifier.size(28.dp)) {
+            Icon(
+                Icons.Filled.Add,
+                contentDescription = "添加活动",
+                modifier = Modifier.size(18.dp),
+                tint = burnColor
+            )
         }
     }
 }
 
-// ── 日记摄入卡片 ────────────────────────────────────────────────────────────
-
 @Composable
 private fun DiaryIntakeCard(
-    intake: com.example.nutritracker.data.entity.Intake,
-    meal: com.example.nutritracker.data.entity.Meal?,
-    onEdit: (() -> Unit)? = null,
-    onDelete: (() -> Unit)? = null
+    item: IntakeWithMeal,
+    useKj: Boolean,
+    onEdit: () -> Unit,
+    onDelete: () -> Unit
 ) {
+    val intake = item.intake
+    val meal = item.meal
     var showFullScreenImage by remember { mutableStateOf<String?>(null) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
+    val kcal = meal.energyKcal100 * intake.amount / 100.0
 
     Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
-        ),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onEdit),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
         elevation = CardDefaults.cardElevation(defaultElevation = Dimens.CardElevationLow),
         shape = MaterialTheme.shapes.medium
     ) {
         ListItem(
             leadingContent = {
-                val thumbnailPath = meal?.localImagePath
+                val thumbnailPath = meal.localImagePath
                 if (thumbnailPath != null && File(thumbnailPath).exists()) {
                     AsyncImage(
                         model = ImageRequest.Builder(LocalContext.current)
@@ -520,48 +450,39 @@ private fun DiaryIntakeCard(
             },
             headlineContent = {
                 Text(
-                    text = meal?.name ?: "未知",
+                    text = meal.name,
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurface
                 )
             },
             supportingContent = {
                 Text(
-                    text = "${intake.amount.roundToInt()}g · ${(meal?.energyKcal100?.times(intake.amount)?.div(100))?.roundToInt()} kcal",
+                    text = "${intake.amount.roundToInt()}g · ${UnitCalc.formatEnergy(kcal, useKj)}",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             },
             trailingContent = {
                 Row {
-                    if (onEdit != null) {
-                        IconButton(onClick = onEdit, modifier = Modifier.size(32.dp)) {
-                            Icon(
-                                Icons.Filled.Edit,
-                                contentDescription = "编辑",
-                                modifier = Modifier.size(18.dp),
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
+                    IconButton(onClick = onEdit, modifier = Modifier.size(32.dp)) {
+                        Icon(
+                            Icons.Filled.Edit,
+                            contentDescription = "编辑",
+                            modifier = Modifier.size(18.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
-                    if (onDelete != null) {
-                        IconButton(
-                            onClick = { showDeleteConfirm = true },
-                            modifier = Modifier.size(32.dp)
-                        ) {
-                            Icon(
-                                Icons.Filled.Delete,
-                                contentDescription = "删除",
-                                modifier = Modifier.size(18.dp),
-                                tint = MaterialTheme.colorScheme.error
-                            )
-                        }
+                    IconButton(onClick = { showDeleteConfirm = true }, modifier = Modifier.size(32.dp)) {
+                        Icon(
+                            Icons.Filled.Delete,
+                            contentDescription = "删除",
+                            modifier = Modifier.size(18.dp),
+                            tint = MaterialTheme.colorScheme.error
+                        )
                     }
                 }
             },
-            colors = ListItemDefaults.colors(
-                containerColor = MaterialTheme.colorScheme.surfaceContainerLow
-            )
+            colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)
         )
     }
 
@@ -569,13 +490,10 @@ private fun DiaryIntakeCard(
         AlertDialog(
             onDismissRequest = { showDeleteConfirm = false },
             title = { Text("删除这条记录？") },
-            text = { Text("将删除 \"${meal?.name ?: "未知"}\" 的摄入记录") },
+            text = { Text("将删除 \"${meal.name}\" 的摄入记录") },
             confirmButton = {
                 TextButton(
-                    onClick = {
-                        showDeleteConfirm = false
-                        onDelete?.invoke()
-                    },
+                    onClick = { showDeleteConfirm = false; onDelete() },
                     colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
                 ) { Text("删除") }
             },
@@ -585,10 +503,7 @@ private fun DiaryIntakeCard(
         )
     }
 
-    if (showFullScreenImage != null) {
-        FullScreenImageDialog(
-            imagePath = showFullScreenImage!!,
-            onDismiss = { showFullScreenImage = null }
-        )
+    showFullScreenImage?.let { path ->
+        FullScreenImageDialog(imagePath = path, onDismiss = { showFullScreenImage = null })
     }
 }
