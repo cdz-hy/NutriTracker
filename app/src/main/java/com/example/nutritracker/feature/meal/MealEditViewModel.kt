@@ -1,17 +1,28 @@
 package com.example.nutritracker.feature.meal
 
+import android.content.Context
 import androidx.compose.runtime.*
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.nutritracker.data.entity.*
 import com.example.nutritracker.data.repository.*
+import com.example.nutritracker.feature.camera.NutritionResult
 import com.example.nutritracker.util.DayBoundaryCalc
+import com.example.nutritracker.util.UnitCalc
+import com.example.nutritracker.widget.NutriTrackerWidgetUpdater
+import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.LocalDateTime
+import java.util.Locale
 import javax.inject.Inject
 
 data class EditableFoodItem(
@@ -34,101 +45,133 @@ data class MealEditState(
     val sugarsStr: String = "",
     val satFatStr: String = "",
     val fiberStr: String = "",
-    val sodiumStr: String = ""
+    val sodiumStr: String = "",
+    val cholesterolStr: String = "",
+    val portionLabel: String = "",
+    val portionGramsStr: String = "",
+    val isFavorite: Boolean = false
 )
-
-// Helper for parsing JSON using Gson
-private val gson = com.google.gson.Gson()
 
 @HiltViewModel
 class MealEditViewModel @Inject constructor(
+    @ApplicationContext private val appContext: Context,
     savedStateHandle: SavedStateHandle,
     private val mealRepo: MealRepository,
     private val intakeRepo: IntakeRepository,
     private val trackedDayRepo: TrackedDayRepository,
     private val settingsRepo: SettingsRepository,
-    private val dayBoundaryCalc: DayBoundaryCalc
+    private val dayBoundaryCalc: DayBoundaryCalc,
+    private val gson: Gson
 ) : ViewModel() {
 
+    private val intakeId: Long = savedStateHandle["intakeId"] ?: -1L
     private val mealId: Long = savedStateHandle["mealId"] ?: -1L
     private val intakeTypeId: Int = savedStateHandle["intakeTypeId"] ?: 0
     private val dateEpochDay: Long = savedStateHandle["date"] ?: LocalDate.now().toEpochDay()
-    val isEditing = mealId > 0
+
+    val isTemplateOnlyEdit: Boolean = intakeId <= 0 && mealId > 0
+    val isEditing: Boolean = intakeId > 0 || mealId > 0
+
+    val useKj: StateFlow<Boolean> = settingsRepo.useKj
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
     var selectedDate by mutableStateOf(LocalDate.ofEpochDay(dateEpochDay))
         private set
 
-    fun updateDate(date: LocalDate) { selectedDate = date }
-
     var state by mutableStateOf(MealEditState())
         private set
+
     var intakeType by mutableStateOf(IntakeType.entries.getOrElse(intakeTypeId) { IntakeType.BREAKFAST })
+
+    var sharedIntakeCount by mutableIntStateOf(0)
+        private set
+
+    var cloneAsNewMeal by mutableStateOf(true)
 
     var isSaving by mutableStateOf(false)
         private set
+
     var isSaveCompleted by mutableStateOf(false)
+        private set
+
+    var validationError by mutableStateOf<String?>(null)
         private set
 
     val foodItems = mutableStateListOf<EditableFoodItem>()
 
-    // 保存原始图片路径，编辑后保留
-    private var originalImagePath: String? = null
+    private var loadedMeal: Meal? = null
+    private var loadedIntake: Intake? = null
 
     init {
         if (isEditing) {
             viewModelScope.launch {
-                val meal = mealRepo.getById(mealId)
-                val intake = intakeRepo.getByMealId(mealId)
+                val intakeWithMeal = if (intakeId > 0) intakeRepo.getWithMealById(intakeId) else null
+                val intake = intakeWithMeal?.intake ?: if (mealId > 0 && intakeId > 0) intakeRepo.getByMealId(mealId) else null
+                val meal = intakeWithMeal?.meal ?: if (mealId > 0) mealRepo.getById(mealId) else null
+
+                loadedMeal = meal
+                loadedIntake = intake
+
                 if (meal != null) {
-                    originalImagePath = meal.localImagePath
-                    
+                    val count = intakeRepo.countByMealId(meal.id)
+                    sharedIntakeCount = count
+                    cloneAsNewMeal = count > 1 && !isTemplateOnlyEdit
+
                     meal.foodItemsJson?.let { json ->
                         try {
-                            val itemsType = object : com.google.gson.reflect.TypeToken<List<Map<String, Any>>>() {}.type
-                            val parsedItems: List<Map<String, Any>> = gson.fromJson(json, itemsType)
-                            parsedItems.forEach { itemMap ->
+                            val itemsType = object : TypeToken<List<NutritionResult.FoodItem>>() {}.type
+                            val parsedItems: List<NutritionResult.FoodItem> = gson.fromJson(json, itemsType)
+                            parsedItems.forEach { item ->
                                 foodItems.add(
                                     EditableFoodItem(
-                                        name = (itemMap["name"] as? String) ?: "",
-                                        weightG = (itemMap["weight_g"] as? Double)?.toString() ?: "0",
-                                        calories = (itemMap["calories"] as? Double)?.toString() ?: "0",
-                                        carbs = (itemMap["carbs"] as? Double)?.toString() ?: "0",
-                                        protein = (itemMap["protein"] as? Double)?.toString() ?: "0",
-                                        fat = (itemMap["fat"] as? Double)?.toString() ?: "0"
+                                        name = item.name,
+                                        weightG = UnitCalc.formatDecimal(item.weightG, 1),
+                                        calories = UnitCalc.formatDecimal(item.calories, 1),
+                                        carbs = UnitCalc.formatDecimal(item.carbs, 1),
+                                        protein = UnitCalc.formatDecimal(item.protein, 1),
+                                        fat = UnitCalc.formatDecimal(item.fat, 1)
                                     )
                                 )
                             }
-                        } catch (e: Exception) {
-                            // Ignored
+                        } catch (_: Exception) {
                         }
                     }
 
                     state = MealEditState(
                         name = meal.name,
-                        amountStr = intake?.amount?.toInt()?.toString() ?: "100",
-                        energyStr = meal.energyKcal100.toString(),
-                        carbsStr = meal.carbohydrates100.toString(),
-                        fatStr = meal.fat100.toString(),
-                        proteinStr = meal.proteins100.toString(),
-                        sugarsStr = meal.sugars100?.toString() ?: "",
-                        satFatStr = meal.saturatedFat100?.toString() ?: "",
-                        fiberStr = meal.fiber100?.toString() ?: "",
-                        sodiumStr = meal.sodium100?.toString() ?: ""
+                        amountStr = intake?.amount?.let { UnitCalc.formatDecimal(it, 0) }
+                            ?: meal.portionGrams?.let { UnitCalc.formatDecimal(it, 0) }
+                            ?: "100",
+                        energyStr = UnitCalc.formatDecimal(meal.energyKcal100, 1),
+                        carbsStr = UnitCalc.formatDecimal(meal.carbohydrates100, 1),
+                        fatStr = UnitCalc.formatDecimal(meal.fat100, 1),
+                        proteinStr = UnitCalc.formatDecimal(meal.proteins100, 1),
+                        sugarsStr = meal.sugars100?.let { UnitCalc.formatDecimal(it, 1) } ?: "",
+                        satFatStr = meal.saturatedFat100?.let { UnitCalc.formatDecimal(it, 1) } ?: "",
+                        fiberStr = meal.fiber100?.let { UnitCalc.formatDecimal(it, 1) } ?: "",
+                        sodiumStr = meal.sodium100?.let { UnitCalc.formatDecimal(it, 1) } ?: "",
+                        cholesterolStr = meal.cholesterol100?.let { UnitCalc.formatDecimal(it, 1) } ?: "",
+                        portionLabel = meal.portionLabel ?: "",
+                        portionGramsStr = meal.portionGrams?.let { UnitCalc.formatDecimal(it, 0) } ?: "",
+                        isFavorite = meal.isFavorite
                     )
-                    
-                    if (foodItems.isNotEmpty()) {
+
+                    if (foodItems.isNotEmpty() && intake == null) {
                         recalculateTotals()
                     }
 
                     intake?.let {
                         intakeType = it.intakeType
-                        selectedDate = it.dateTime.toLocalDate()
+                        val offset = settingsRepo.dayBoundaryMinutes.first()
+                        selectedDate = dayBoundaryCalc.logicalDayOf(it.dateTime, offset)
                     }
                 }
             }
         }
     }
 
+    fun clearValidationError() { validationError = null }
+    fun updateDate(date: LocalDate) { selectedDate = date }
     fun updateName(v: String) { state = state.copy(name = v) }
     fun updateAmount(v: String) { if (foodItems.isEmpty()) state = state.copy(amountStr = v) }
     fun updateEnergy(v: String) { if (foodItems.isEmpty()) state = state.copy(energyStr = v) }
@@ -139,6 +182,10 @@ class MealEditViewModel @Inject constructor(
     fun updateSatFat(v: String) { state = state.copy(satFatStr = v) }
     fun updateFiber(v: String) { state = state.copy(fiberStr = v) }
     fun updateSodium(v: String) { state = state.copy(sodiumStr = v) }
+    fun updateCholesterol(v: String) { state = state.copy(cholesterolStr = v) }
+    fun updatePortionLabel(v: String) { state = state.copy(portionLabel = v) }
+    fun updatePortionGrams(v: String) { state = state.copy(portionGramsStr = v) }
+    fun toggleFavorite() { state = state.copy(isFavorite = !state.isFavorite) }
 
     fun addFoodItem() {
         foodItems.add(EditableFoodItem(name = "新食物", weightG = "100", calories = "0", carbs = "0", protein = "0", fat = "0"))
@@ -167,125 +214,141 @@ class MealEditViewModel @Inject constructor(
         var totalFat = 0.0
 
         for (item in foodItems) {
-            totalWeight += item.weightG.toDoubleOrNull() ?: 0.0
-            totalCals += item.calories.toDoubleOrNull() ?: 0.0
-            totalCarbs += item.carbs.toDoubleOrNull() ?: 0.0
-            totalPro += item.protein.toDoubleOrNull() ?: 0.0
-            totalFat += item.fat.toDoubleOrNull() ?: 0.0
+            totalWeight += (item.weightG.toDoubleOrNull() ?: 0.0).coerceAtLeast(0.0)
+            totalCals += (item.calories.toDoubleOrNull() ?: 0.0).coerceAtLeast(0.0)
+            totalCarbs += (item.carbs.toDoubleOrNull() ?: 0.0).coerceAtLeast(0.0)
+            totalPro += (item.protein.toDoubleOrNull() ?: 0.0).coerceAtLeast(0.0)
+            totalFat += (item.fat.toDoubleOrNull() ?: 0.0).coerceAtLeast(0.0)
         }
 
-        totalWeight = totalWeight.coerceAtLeast(0.1) // prevent div by zero
-        val per100Factor = 100.0 / totalWeight
+        val safeWeight = totalWeight.coerceAtLeast(1.0)
+        val per100 = 100.0 / safeWeight
 
         state = state.copy(
-            amountStr = totalWeight.toInt().toString(),
-            energyStr = "%.2f".format(totalCals * per100Factor).replace(",", "."),
-            carbsStr = "%.2f".format(totalCarbs * per100Factor).replace(",", "."),
-            proteinStr = "%.2f".format(totalPro * per100Factor).replace(",", "."),
-            fatStr = "%.2f".format(totalFat * per100Factor).replace(",", ".")
+            amountStr = String.format(Locale.US, "%.0f", safeWeight),
+            energyStr = UnitCalc.formatDecimal(totalCals * per100, 2),
+            carbsStr = UnitCalc.formatDecimal(totalCarbs * per100, 2),
+            proteinStr = UnitCalc.formatDecimal(totalPro * per100, 2),
+            fatStr = UnitCalc.formatDecimal(totalFat * per100, 2)
         )
     }
 
-    private fun buildMeal(): Meal? {
-        if (state.name.isBlank()) return null
-        
+    private fun buildMealEntity(targetMealId: Long): Meal? {
+        if (state.name.isBlank()) {
+            validationError = "请输入食物名称"
+            return null
+        }
+
+        val energy = state.energyStr.toDoubleOrNull() ?: 0.0
+        val carbs = state.carbsStr.toDoubleOrNull() ?: 0.0
+        val fat = state.fatStr.toDoubleOrNull() ?: 0.0
+        val protein = state.proteinStr.toDoubleOrNull() ?: 0.0
+
+        if (energy < 0 || carbs < 0 || fat < 0 || protein < 0) {
+            validationError = "营养成分数值不能为负数"
+            return null
+        }
+
         val newFoodItemsJson = if (foodItems.isNotEmpty()) {
-            val jsonList = foodItems.map {
-                mapOf(
-                    "name" to it.name,
-                    "weight_g" to (it.weightG.toDoubleOrNull() ?: 0.0),
-                    "calories" to (it.calories.toDoubleOrNull() ?: 0.0),
-                    "carbs" to (it.carbs.toDoubleOrNull() ?: 0.0),
-                    "protein" to (it.protein.toDoubleOrNull() ?: 0.0),
-                    "fat" to (it.fat.toDoubleOrNull() ?: 0.0)
+            val items = foodItems.map {
+                NutritionResult.FoodItem(
+                    name = it.name.ifBlank { "未命名" },
+                    weightG = (it.weightG.toDoubleOrNull() ?: 0.0).coerceAtLeast(0.0),
+                    calories = (it.calories.toDoubleOrNull() ?: 0.0).coerceAtLeast(0.0),
+                    carbs = (it.carbs.toDoubleOrNull() ?: 0.0).coerceAtLeast(0.0),
+                    protein = (it.protein.toDoubleOrNull() ?: 0.0).coerceAtLeast(0.0),
+                    fat = (it.fat.toDoubleOrNull() ?: 0.0).coerceAtLeast(0.0)
                 )
             }
-            gson.toJson(jsonList)
+            gson.toJson(items)
         } else null
 
+        val original = loadedMeal
         return Meal(
-            id = if (isEditing) mealId else 0,
-            name = state.name,
-            source = if (isEditing) MealSource.CUSTOM else MealSource.MANUAL,
-            energyKcal100 = state.energyStr.toDoubleOrNull() ?: 0.0,
-            carbohydrates100 = state.carbsStr.toDoubleOrNull() ?: 0.0,
-            fat100 = state.fatStr.toDoubleOrNull() ?: 0.0,
-            proteins100 = state.proteinStr.toDoubleOrNull() ?: 0.0,
-            sugars100 = state.sugarsStr.toDoubleOrNull(),
-            saturatedFat100 = state.satFatStr.toDoubleOrNull(),
-            fiber100 = state.fiberStr.toDoubleOrNull(),
-            sodium100 = state.sodiumStr.toDoubleOrNull(),
-            localImagePath = originalImagePath,
+            id = targetMealId,
+            name = state.name.trim(),
+            localImagePath = original?.localImagePath,
+            source = original?.source ?: MealSource.MANUAL,
+            energyKcal100 = energy,
+            carbohydrates100 = carbs,
+            fat100 = fat,
+            proteins100 = protein,
+            sugars100 = state.sugarsStr.toDoubleOrNull()?.coerceAtLeast(0.0),
+            saturatedFat100 = state.satFatStr.toDoubleOrNull()?.coerceAtLeast(0.0),
+            fiber100 = state.fiberStr.toDoubleOrNull()?.coerceAtLeast(0.0),
+            sodium100 = state.sodiumStr.toDoubleOrNull()?.coerceAtLeast(0.0),
+            cholesterol100 = state.cholesterolStr.toDoubleOrNull()?.coerceAtLeast(0.0),
+            portionLabel = state.portionLabel.trim().takeIf { it.isNotEmpty() },
+            portionGrams = state.portionGramsStr.toDoubleOrNull()?.takeIf { it > 0 },
+            isFavorite = state.isFavorite,
+            isArchived = original?.isArchived ?: false,
             foodItemsJson = newFoodItemsJson
         )
     }
 
-    fun save() {
-        saveIntake()
-    }
+    fun save() = saveIntake()
 
     fun saveIntake() {
-        val meal = buildMeal() ?: return
-        val amount = state.amountStr.toDoubleOrNull() ?: 100.0
+        val amount = state.amountStr.toDoubleOrNull()
+        if (!isTemplateOnlyEdit && (amount == null || amount <= 0.0)) {
+            validationError = "请输入大于 0 的食用份量 (g)"
+            return
+        }
+
+        val targetMealIdForBuild = when {
+            isTemplateOnlyEdit -> loadedMeal?.id ?: mealId
+            loadedIntake != null && loadedMeal != null -> {
+                if (sharedIntakeCount > 1 && cloneAsNewMeal) 0L else loadedMeal!!.id
+            }
+            else -> 0L
+        }
+
+        val meal = buildMealEntity(targetMealIdForBuild) ?: return
+
         viewModelScope.launch {
             isSaving = true
             try {
-                if (isEditing) {
-                    val oldMeal = mealRepo.getById(mealId)
-                    val oldIntake = intakeRepo.getByMealId(mealId)
-                    if (oldMeal != null && oldIntake != null) {
-                        val offset = settingsRepo.dayBoundaryMinutes.first()
-                        val oldDay = dayBoundaryCalc.logicalDayOf(oldIntake.dateTime, offset)
-
-                        // 1. 移除旧的卡路里贡献
-                        val oldFactor = oldIntake.amount / 100.0
-                        trackedDayRepo.removeCalories(
-                            oldDay,
-                            oldMeal.energyKcal100 * oldFactor,
-                            oldMeal.carbohydrates100 * oldFactor,
-                            oldMeal.fat100 * oldFactor,
-                            oldMeal.proteins100 * oldFactor
-                        )
-
-                        // 2. 保存/更新 Meal
-                        mealRepo.upsert(meal)
-
-                        // 3. 更新 Intake (日期可能已更改)
-                        val newDateTime = selectedDate.atTime(oldIntake.dateTime.toLocalTime())
-                        val updatedIntake = oldIntake.copy(
+                if (isTemplateOnlyEdit) {
+                    mealRepo.upsert(meal)
+                } else if (loadedIntake != null) {
+                    val savedMealId = mealRepo.upsert(meal)
+                    val offset = settingsRepo.dayBoundaryMinutes.first()
+                    val oldIntake = loadedIntake!!
+                    val oldLogicalDay = dayBoundaryCalc.logicalDayOf(oldIntake.dateTime, offset)
+                    val newDateTime = if (selectedDate == oldLogicalDay) {
+                        oldIntake.dateTime
+                    } else {
+                        val logicalToday = dayBoundaryCalc.currentLogicalDay(offset)
+                        if (selectedDate == logicalToday) LocalDateTime.now() else selectedDate.atTime(12, 0)
+                    }
+                    intakeRepo.upsert(
+                        oldIntake.copy(
+                            mealId = savedMealId,
                             intakeType = intakeType,
-                            amount = amount,
+                            amount = amount!!,
                             dateTime = newDateTime
                         )
-                        intakeRepo.upsert(updatedIntake)
-
-                        // 4. 添加新的卡路里贡献到目标日期
-                        val newFactor = amount / 100.0
-                        trackedDayRepo.ensureDay(selectedDate, 0.0, 0.0, 0.0, 0.0)
-                        trackedDayRepo.addCalories(
-                            selectedDate,
-                            meal.energyKcal100 * newFactor,
-                            meal.carbohydrates100 * newFactor,
-                            meal.fat100 * newFactor,
-                            meal.proteins100 * newFactor
-                        )
-                    }
+                    )
+                    trackedDayRepo.saveGoalSnapshot(selectedDate, 0.0, 0.0, 0.0, 0.0)
                 } else {
                     val savedMealId = mealRepo.upsert(meal)
-                    val dateTime = if (selectedDate == LocalDate.now()) LocalDateTime.now() else selectedDate.atTime(12, 0)
-                    intakeRepo.upsert(Intake(mealId = savedMealId, intakeType = intakeType, amount = amount, dateTime = dateTime))
-                    trackedDayRepo.ensureDay(selectedDate, 0.0, 0.0, 0.0, 0.0)
-                    trackedDayRepo.addCalories(
-                        selectedDate,
-                        meal.energyKcal100 * amount / 100.0,
-                        meal.carbohydrates100 * amount / 100.0,
-                        meal.fat100 * amount / 100.0,
-                        meal.proteins100 * amount / 100.0
+                    val offset = settingsRepo.dayBoundaryMinutes.first()
+                    val logicalToday = dayBoundaryCalc.currentLogicalDay(offset)
+                    val dateTime = if (selectedDate == logicalToday) LocalDateTime.now() else selectedDate.atTime(12, 0)
+                    intakeRepo.upsert(
+                        Intake(
+                            mealId = savedMealId,
+                            intakeType = intakeType,
+                            amount = amount!!,
+                            dateTime = dateTime
+                        )
                     )
+                    trackedDayRepo.saveGoalSnapshot(selectedDate, 0.0, 0.0, 0.0, 0.0)
                 }
+                NutriTrackerWidgetUpdater.enqueueUpdate(appContext)
                 isSaveCompleted = true
-            } catch (_: Exception) {
-                // Ignore or log error
+            } catch (e: Exception) {
+                validationError = "保存失败: ${e.message}"
             } finally {
                 isSaving = false
             }
