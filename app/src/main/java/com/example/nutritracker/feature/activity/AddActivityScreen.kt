@@ -4,7 +4,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
-import com.example.nutritracker.ui.theme.*
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -19,8 +18,9 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.nutritracker.data.entity.*
+import com.example.nutritracker.ui.theme.*
 import com.example.nutritracker.util.MetCalc
-import kotlin.math.roundToInt
+import com.example.nutritracker.util.UnitCalc
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -29,10 +29,16 @@ fun AddActivityScreen(
     vm: ActivityViewModel = hiltViewModel()
 ) {
     val user by vm.user.collectAsStateWithLifecycle()
+    val useKj by vm.useKj.collectAsStateWithLifecycle()
     var selectedActivity by remember { mutableStateOf<PhysicalActivity?>(null) }
+    var lastSelectedActivity by remember { mutableStateOf<PhysicalActivity?>(null) }
     var durationStr by remember { mutableStateOf("30") }
     var searchQuery by remember { mutableStateOf("") }
     var showCustomDialog by remember { mutableStateOf(false) }
+
+    LaunchedEffect(selectedActivity) {
+        if (selectedActivity != null) lastSelectedActivity = selectedActivity
+    }
 
     val activities = remember(searchQuery) {
         PhysicalActivityDatabase.searchActivities(searchQuery)
@@ -81,79 +87,50 @@ fun AddActivityScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .padding(horizontal = 16.dp)
+                .padding(horizontal = Dimens.ContentPadding)
         ) {
-            // Search bar
             OutlinedTextField(
                 value = searchQuery,
                 onValueChange = { searchQuery = it },
                 modifier = Modifier.fillMaxWidth(),
-                placeholder = {
-                    Text(
-                        text = "搜索运动...",
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                },
-                leadingIcon = {
-                    Icon(
-                        Icons.Filled.Search,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                },
+                placeholder = { Text("搜索运动...") },
+                leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
                 trailingIcon = {
                     if (searchQuery.isNotEmpty()) {
                         IconButton(onClick = { searchQuery = "" }) {
-                            Icon(
-                                Icons.Filled.Clear,
-                                contentDescription = "清除",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                            Icon(Icons.Filled.Clear, contentDescription = "清除")
                         }
                     }
                 },
                 singleLine = true,
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = MaterialTheme.colorScheme.primary,
-                    unfocusedBorderColor = MaterialTheme.colorScheme.outline,
-                    focusedPlaceholderColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                    unfocusedPlaceholderColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                    cursorColor = MaterialTheme.colorScheme.primary,
-                    focusedTextColor = MaterialTheme.colorScheme.onSurface,
-                    unfocusedTextColor = MaterialTheme.colorScheme.onSurface
-                ),
                 shape = MaterialTheme.shapes.large
             )
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(Dimens.CardSpacing))
 
-            // Selected activity detail card
             AnimatedExpand(visible = selectedActivity != null) {
-                selectedActivity?.let { activity ->
+                lastSelectedActivity?.let { activity ->
                     Column {
                         ActivityDetailCard(
                             activity = activity,
                             durationStr = durationStr,
                             onDurationChange = { durationStr = it },
                             user = user,
+                            useKj = useKj,
                             onCancel = { selectedActivity = null },
                             onRecord = { kcal ->
-                                vm.addActivity(
-                                    activity.name,
-                                    activity.mets,
-                                    durationStr.toDoubleOrNull() ?: 0.0,
-                                    kcal
-                                )
-                                onBack()
+                                val dur = durationStr.toDoubleOrNull() ?: 0.0
+                                if (dur > 0.0 && kcal > 0.0) {
+                                    vm.addActivity(activity.name, activity.mets, dur, kcal, activity.category.displayName)
+                                    onBack()
+                                }
                             }
                         )
-                        Spacer(modifier = Modifier.height(12.dp))
+                        Spacer(modifier = Modifier.height(Dimens.CardSpacing))
                     }
                 }
             }
 
-            // Activity list grouped by category
             LazyColumn(
                 verticalArrangement = Arrangement.spacedBy(4.dp),
                 contentPadding = PaddingValues(bottom = 16.dp)
@@ -193,6 +170,7 @@ fun AddActivityScreen(
 
     if (showCustomDialog) {
         CustomActivityDialog(
+            useKj = useKj,
             onDismiss = { showCustomDialog = false },
             onConfirm = { name, kcal, duration ->
                 vm.addCustomActivity(name, kcal, duration)
@@ -209,23 +187,22 @@ private fun ActivityDetailCard(
     durationStr: String,
     onDurationChange: (String) -> Unit,
     user: User?,
+    useKj: Boolean,
     onCancel: () -> Unit,
     onRecord: (Double) -> Unit
 ) {
     val weight = user?.weightKg ?: 70.0
     val duration = durationStr.toDoubleOrNull() ?: 0.0
-    val kcal = if (activity.code == "99999") 0.0
-    else MetCalc.getBurnedKcal(weight, activity.mets, duration)
+    val validDuration = duration > 0.0
+    val kcal = if (validDuration) MetCalc.getBurnedKcal(weight, activity.mets, duration) else 0.0
 
     ElevatedCard(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.elevatedCardColors(
-            containerColor = MaterialTheme.colorScheme.primaryContainer
-        ),
-        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp)
+        colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
+        elevation = CardDefaults.elevatedCardElevation(defaultElevation = Dimens.CardElevationHigh)
     ) {
         Column(
-            modifier = Modifier.padding(20.dp),
+            modifier = Modifier.padding(Dimens.CardInnerPadding),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Text(
@@ -247,52 +224,41 @@ private fun ActivityDetailCard(
                 color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
             )
 
-            if (activity.code != "99999") {
-                OutlinedTextField(
-                    value = durationStr,
-                    onValueChange = onDurationChange,
-                    label = {
-                        Text(
-                            text = "时长 (分钟)",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer
-                        )
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                        unfocusedBorderColor = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.5f),
-                        focusedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                        unfocusedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f),
-                        cursorColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                        focusedTextColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                        unfocusedTextColor = MaterialTheme.colorScheme.onPrimaryContainer
-                    )
+            OutlinedTextField(
+                value = durationStr,
+                onValueChange = onDurationChange,
+                label = { Text("时长 (分钟)") },
+                isError = durationStr.isNotBlank() && !validDuration,
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                    unfocusedBorderColor = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.5f),
+                    focusedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                    cursorColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                    focusedTextColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                    unfocusedTextColor = MaterialTheme.colorScheme.onPrimaryContainer
                 )
-                Text(
-                    text = "预计消耗: ${kcal.roundToInt()} kcal",
-                    style = MaterialTheme.typography.bodyLarge,
-                    fontWeight = FontWeight.Medium,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer
-                )
-            }
+            )
+            Text(
+                text = "预计消耗: ${UnitCalc.formatEnergy(kcal, useKj)}",
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.Medium,
+                color = MaterialTheme.colorScheme.onPrimaryContainer
+            )
 
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 OutlinedButton(
                     onClick = onCancel,
-                    colors = ButtonDefaults.outlinedButtonColors(
-                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer
-                    ),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.onPrimaryContainer),
                     modifier = Modifier.weight(1f)
                 ) {
                     Text("取消")
                 }
                 Button(
                     onClick = { onRecord(kcal) },
+                    enabled = validDuration && kcal > 0.0,
                     colors = ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.onPrimaryContainer,
                         contentColor = MaterialTheme.colorScheme.primaryContainer
@@ -317,14 +283,10 @@ private fun ActivityListItem(
             .fillMaxWidth()
             .clickable(onClick = onClick),
         colors = CardDefaults.elevatedCardColors(
-            containerColor = if (isSelected)
-                MaterialTheme.colorScheme.primaryContainer
-            else
-                MaterialTheme.colorScheme.surfaceContainerLow
+            containerColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer
+            else MaterialTheme.colorScheme.surfaceContainerLow
         ),
-        elevation = CardDefaults.elevatedCardElevation(
-            defaultElevation = if (isSelected) 2.dp else 0.5.dp
-        )
+        elevation = CardDefaults.elevatedCardElevation(defaultElevation = if (isSelected) 2.dp else 0.5.dp)
     ) {
         Row(
             modifier = Modifier
@@ -345,29 +307,21 @@ private fun ActivityListItem(
                 },
                 contentDescription = null,
                 modifier = Modifier.size(24.dp),
-                tint = if (isSelected)
-                    MaterialTheme.colorScheme.onPrimaryContainer
-                else
-                    MaterialTheme.colorScheme.primary
+                tint = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.primary
             )
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = activity.name,
                     style = MaterialTheme.typography.bodyLarge,
                     fontWeight = FontWeight.Medium,
-                    color = if (isSelected)
-                        MaterialTheme.colorScheme.onPrimaryContainer
-                    else
-                        MaterialTheme.colorScheme.onSurface
+                    color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
                 )
                 if (activity.description.isNotBlank()) {
                     Text(
                         text = activity.description,
                         style = MaterialTheme.typography.bodySmall,
-                        color = if (isSelected)
-                            MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
-                        else
-                            MaterialTheme.colorScheme.onSurfaceVariant
+                        color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
+                        else MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             }
@@ -375,10 +329,7 @@ private fun ActivityListItem(
                 text = "MET ${activity.mets}",
                 style = MaterialTheme.typography.bodySmall,
                 fontWeight = FontWeight.Medium,
-                color = if (isSelected)
-                    MaterialTheme.colorScheme.onPrimaryContainer
-                else
-                    MaterialTheme.colorScheme.onSurfaceVariant
+                color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
     }
@@ -386,12 +337,17 @@ private fun ActivityListItem(
 
 @Composable
 private fun CustomActivityDialog(
+    useKj: Boolean,
     onDismiss: () -> Unit,
     onConfirm: (name: String, kcal: Double, duration: Double) -> Unit
 ) {
     var name by remember { mutableStateOf("") }
-    var kcal by remember { mutableStateOf("") }
-    var duration by remember { mutableStateOf("30") }
+    var energyStr by remember { mutableStateOf("") }
+    var durationStr by remember { mutableStateOf("30") }
+
+    val energyVal = energyStr.toDoubleOrNull()
+    val durationVal = durationStr.toDoubleOrNull()
+    val isValid = name.isNotBlank() && energyVal != null && energyVal > 0.0 && durationVal != null && durationVal > 0.0
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -399,112 +355,55 @@ private fun CustomActivityDialog(
             Text(
                 text = "自定义活动",
                 style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurface
+                fontWeight = FontWeight.Bold
             )
         },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(
-                    text = "手动输入活动消耗的卡路里",
+                    text = "手动输入活动消耗的能量与时长",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 OutlinedTextField(
                     value = name,
                     onValueChange = { name = it },
-                    label = {
-                        Text(
-                            text = "活动名称",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    },
+                    label = { Text("活动名称") },
                     singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = MaterialTheme.colorScheme.primary,
-                        unfocusedBorderColor = MaterialTheme.colorScheme.outline,
-                        focusedLabelColor = MaterialTheme.colorScheme.primary,
-                        unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                        cursorColor = MaterialTheme.colorScheme.primary,
-                        focusedTextColor = MaterialTheme.colorScheme.onSurface,
-                        unfocusedTextColor = MaterialTheme.colorScheme.onSurface
-                    )
+                    modifier = Modifier.fillMaxWidth()
                 )
                 OutlinedTextField(
-                    value = kcal,
-                    onValueChange = { kcal = it },
-                    label = {
-                        Text(
-                            text = "消耗卡路里",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    },
+                    value = energyStr,
+                    onValueChange = { energyStr = it },
+                    label = { Text("消耗 (${UnitCalc.energyUnitLabel(useKj)})") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = MaterialTheme.colorScheme.primary,
-                        unfocusedBorderColor = MaterialTheme.colorScheme.outline,
-                        focusedLabelColor = MaterialTheme.colorScheme.primary,
-                        unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                        cursorColor = MaterialTheme.colorScheme.primary,
-                        focusedTextColor = MaterialTheme.colorScheme.onSurface,
-                        unfocusedTextColor = MaterialTheme.colorScheme.onSurface
-                    )
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
                 )
                 OutlinedTextField(
-                    value = duration,
-                    onValueChange = { duration = it },
-                    label = {
-                        Text(
-                            text = "时长 (分钟)",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    },
+                    value = durationStr,
+                    onValueChange = { durationStr = it },
+                    label = { Text("时长 (分钟)") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = MaterialTheme.colorScheme.primary,
-                        unfocusedBorderColor = MaterialTheme.colorScheme.outline,
-                        focusedLabelColor = MaterialTheme.colorScheme.primary,
-                        unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                        cursorColor = MaterialTheme.colorScheme.primary,
-                        focusedTextColor = MaterialTheme.colorScheme.onSurface,
-                        unfocusedTextColor = MaterialTheme.colorScheme.onSurface
-                    )
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
                 )
             }
         },
         confirmButton = {
             TextButton(
                 onClick = {
-                    onConfirm(name, kcal.toDoubleOrNull() ?: 0.0, duration.toDoubleOrNull() ?: 0.0)
+                    val kcal = UnitCalc.displayEnergyToKcal(energyVal ?: 0.0, useKj)
+                    onConfirm(name, kcal, durationVal ?: 0.0)
                 },
-                enabled = name.isNotBlank() && kcal.toDoubleOrNull() != null,
-                colors = ButtonDefaults.textButtonColors(
-                    contentColor = MaterialTheme.colorScheme.primary
-                )
+                enabled = isValid
             ) {
                 Text("添加")
             }
         },
         dismissButton = {
-            TextButton(
-                onClick = onDismiss,
-                colors = ButtonDefaults.textButtonColors(
-                    contentColor = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            ) {
-                Text("取消")
-            }
+            TextButton(onClick = onDismiss) { Text("取消") }
         },
-        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-        titleContentColor = MaterialTheme.colorScheme.onSurface,
-        textContentColor = MaterialTheme.colorScheme.onSurfaceVariant
+        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
     )
 }
