@@ -1,14 +1,17 @@
 package com.example.nutritracker
 
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.foundation.layout.*
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -17,54 +20,101 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.navigation.NavHostController
 import androidx.navigation.NavType
-import androidx.compose.animation.*
-import androidx.compose.animation.core.tween
 import androidx.navigation.compose.*
 import androidx.navigation.navArgument
-import com.example.nutritracker.feature.home.HomeScreen
-import com.example.nutritracker.feature.home.HomeViewModel
+import com.example.nutritracker.feature.activity.AddActivityScreen
+import com.example.nutritracker.feature.analytics.AnalyticsScreen
+import com.example.nutritracker.feature.camera.CameraCaptureScreen
 import com.example.nutritracker.feature.diary.DiaryScreen
+import com.example.nutritracker.feature.home.HomeScreen
+import com.example.nutritracker.feature.meal.AddMealScreen
+import com.example.nutritracker.feature.meal.FoodLibraryScreen
+import com.example.nutritracker.feature.meal.MealEditScreen
+import com.example.nutritracker.feature.onboarding.OnboardingScreen
 import com.example.nutritracker.feature.profile.ProfileScreen
 import com.example.nutritracker.feature.profile.WeightHistoryScreen
 import com.example.nutritracker.feature.settings.SettingsScreen
-import com.example.nutritracker.feature.onboarding.OnboardingScreen
-import com.example.nutritracker.feature.meal.MealEditScreen
-import com.example.nutritracker.feature.meal.AddMealScreen
-import com.example.nutritracker.feature.camera.CameraCaptureScreen
-import com.example.nutritracker.feature.activity.AddActivityScreen
 import com.example.nutritracker.feature.sources.SourcesScreen
 import com.example.nutritracker.navigation.Screen
+import com.example.nutritracker.navigation.bottomNavItems
 import com.example.nutritracker.ui.theme.*
+import com.google.gson.Gson
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.launch
+import java.time.LocalDate
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
+
+    private var pendingCameraLaunch = mutableStateOf(false)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        setContent { NutriTrackerTheme { NutriTrackerNav() } }
+        handleIntentExtras(intent)
+        setContent {
+            val rootVm: RootViewModel = hiltViewModel()
+            val themeMode by rootVm.themeMode.collectAsStateWithLifecycle()
+            val dynamicColor by rootVm.dynamicColorEnabled.collectAsStateWithLifecycle()
+
+            NutriTrackerTheme(
+                themeMode = themeMode,
+                dynamicColor = dynamicColor
+            ) {
+                NutriTrackerNav(
+                    rootVm = rootVm,
+                    openCameraSignal = pendingCameraLaunch.value,
+                    onConsumeCameraSignal = { pendingCameraLaunch.value = false }
+                )
+            }
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        handleIntentExtras(intent)
+    }
+
+    private fun handleIntentExtras(intent: Intent?) {
+        if (intent?.getBooleanExtra(EXTRA_OPEN_CAMERA, false) == true) {
+            pendingCameraLaunch.value = true
+            intent.removeExtra(EXTRA_OPEN_CAMERA)
+        }
+    }
+
+    companion object {
+        const val EXTRA_OPEN_CAMERA = "extra_open_camera"
     }
 }
 
 @Composable
-fun NutriTrackerNav() {
+fun NutriTrackerNav(
+    rootVm: RootViewModel,
+    openCameraSignal: Boolean,
+    onConsumeCameraSignal: () -> Unit
+) {
     val rootNav = rememberNavController()
-    val vm: HomeViewModel = hiltViewModel()
-    val onboardingDone by vm.onboardingDone.collectAsStateWithLifecycle(initialValue = null)
+    val onboardingDone by rootVm.onboardingDone.collectAsStateWithLifecycle()
+    val scope = rememberCoroutineScope()
 
-    // 等待 DataStore 加载完成，避免闪屏
     if (onboardingDone == null) {
-        Box(
-            modifier = Modifier.fillMaxSize(),
-            contentAlignment = Alignment.Center
-        ) {
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
         }
         return
     }
 
-    val startDest = if (onboardingDone == true) "main" else Screen.Onboarding.route
+    val startDest = if (onboardingDone == true) Screen.Main.route else Screen.Onboarding.route
+
+    LaunchedEffect(openCameraSignal, onboardingDone) {
+        if (openCameraSignal && onboardingDone == true) {
+            val logicalDay = rootVm.currentLogicalDay()
+            onConsumeCameraSignal()
+            rootNav.navigate(Screen.CameraCapture.createRoute(0, logicalDay.toEpochDay()))
+        }
+    }
 
     NavHost(
         navController = rootNav,
@@ -77,48 +127,54 @@ fun NutriTrackerNav() {
         composable(Screen.Onboarding.route) {
             OnboardingScreen(
                 onDone = {
-                    rootNav.navigate("main") {
+                    rootNav.navigate(Screen.Main.route) {
                         popUpTo(Screen.Onboarding.route) { inclusive = true }
                     }
                 },
-                onNavigateToSources = {
-                    rootNav.navigate(Screen.Sources.route)
-                }
+                onNavigateToSources = { rootNav.navigate(Screen.Sources.route) }
             )
         }
-        composable("main") { MainScaffold(rootNav) }
+
+        composable(Screen.Main.route) {
+            MainScaffold(rootNav)
+        }
+
         composable(
-            Screen.AddMeal.route,
+            route = Screen.AddMeal.route,
             arguments = listOf(
                 navArgument("intakeTypeId") { type = NavType.IntType },
-                navArgument("date") { type = NavType.LongType; defaultValue = java.time.LocalDate.now().toEpochDay() }
+                navArgument("date") { type = NavType.LongType; defaultValue = LocalDate.now().toEpochDay() }
             )
-        ) {
-            val typeId = it.arguments?.getInt("intakeTypeId") ?: 0
-            val dateEpochDay = it.arguments?.getLong("date") ?: java.time.LocalDate.now().toEpochDay()
+        ) { backStackEntry ->
+            val typeId = backStackEntry.arguments?.getInt("intakeTypeId") ?: 0
+            val dateEpochDay = backStackEntry.arguments?.getLong("date") ?: LocalDate.now().toEpochDay()
             AddMealScreen(
                 intakeTypeId = typeId,
                 dateEpochDay = dateEpochDay,
                 onNavigateToCamera = { rootNav.navigate(Screen.CameraCapture.createRoute(typeId, dateEpochDay)) },
                 onMealSaved = { rootNav.popBackStack() },
-                onNavigateToEdit = { mealId, tId ->
-                    rootNav.navigate(Screen.MealEdit.createRoute(mealId, tId, dateEpochDay))
+                onNavigateToEdit = { intakeId, mealId, tId ->
+                    rootNav.navigate(Screen.MealEdit.createRoute(intakeId, mealId, tId, dateEpochDay))
+                },
+                onNavigateToLibrary = { tId, dEpoch ->
+                    rootNav.navigate(Screen.FoodLibrary.createRoute(tId, dEpoch))
                 },
                 navController = rootNav
             )
         }
+
         composable(
             route = Screen.CameraCapture.route,
             arguments = listOf(
                 navArgument("intakeTypeId") { type = NavType.IntType; defaultValue = 0 },
-                navArgument("date") { type = NavType.LongType; defaultValue = java.time.LocalDate.now().toEpochDay() }
+                navArgument("date") { type = NavType.LongType; defaultValue = LocalDate.now().toEpochDay() }
             )
         ) { backStackEntry ->
             val intakeTypeId = backStackEntry.arguments?.getInt("intakeTypeId") ?: 0
-            val dateEpochDay = backStackEntry.arguments?.getLong("date") ?: java.time.LocalDate.now().toEpochDay()
+            val dateEpochDay = backStackEntry.arguments?.getLong("date") ?: LocalDate.now().toEpochDay()
             CameraCaptureScreen(
                 onImageSelected = { uris, notes ->
-                    val urisJson = com.google.gson.Gson().toJson(uris.map { it.toString() })
+                    val urisJson = Gson().toJson(uris.map { it.toString() })
                     rootNav.previousBackStackEntry?.savedStateHandle?.set("selected_image_uris", urisJson)
                     rootNav.previousBackStackEntry?.savedStateHandle?.set("selected_image_notes", notes)
                     rootNav.previousBackStackEntry?.savedStateHandle?.set("intake_type_id", intakeTypeId)
@@ -128,12 +184,14 @@ fun NutriTrackerNav() {
                 onBack = { rootNav.popBackStack() }
             )
         }
+
         composable(
-            Screen.MealEdit.route,
+            route = Screen.MealEdit.route,
             arguments = listOf(
+                navArgument("intakeId") { type = NavType.LongType; defaultValue = -1L },
                 navArgument("mealId") { type = NavType.LongType; defaultValue = -1L },
                 navArgument("intakeTypeId") { type = NavType.IntType; defaultValue = 0 },
-                navArgument("date") { type = NavType.LongType; defaultValue = java.time.LocalDate.now().toEpochDay() }
+                navArgument("date") { type = NavType.LongType; defaultValue = LocalDate.now().toEpochDay() }
             )
         ) {
             MealEditScreen(
@@ -144,12 +202,36 @@ fun NutriTrackerNav() {
                 }
             )
         }
-        composable(Screen.AddActivity.route) {
+
+        composable(
+            route = Screen.AddActivity.route,
+            arguments = listOf(
+                navArgument("date") { type = NavType.LongType; defaultValue = LocalDate.now().toEpochDay() }
+            )
+        ) {
             AddActivityScreen(onBack = { rootNav.popBackStack() })
         }
+
+        composable(
+            route = Screen.FoodLibrary.route,
+            arguments = listOf(
+                navArgument("intakeTypeId") { type = NavType.IntType; defaultValue = 0 },
+                navArgument("date") { type = NavType.LongType; defaultValue = LocalDate.now().toEpochDay() }
+            )
+        ) { backStackEntry ->
+            val dateEpochDay = backStackEntry.arguments?.getLong("date") ?: LocalDate.now().toEpochDay()
+            FoodLibraryScreen(
+                onBack = { rootNav.popBackStack() },
+                onEditMealTemplate = { mealId ->
+                    rootNav.navigate(Screen.MealEdit.createRoute(intakeId = -1L, mealId = mealId, dateEpochDay = dateEpochDay))
+                }
+            )
+        }
+
         composable(Screen.WeightHistory.route) {
             WeightHistoryScreen(onBack = { rootNav.popBackStack() })
         }
+
         composable(Screen.Sources.route) {
             SourcesScreen(onBack = { rootNav.popBackStack() })
         }
@@ -157,18 +239,10 @@ fun NutriTrackerNav() {
 }
 
 @Composable
-fun MainScaffold(rootNav: androidx.navigation.NavHostController) {
+fun MainScaffold(rootNav: NavHostController) {
     val tabNav = rememberNavController()
     val currentBackStack by tabNav.currentBackStackEntryAsState()
     val currentRoute = currentBackStack?.destination?.route
-
-    data class TabDef(val label: String, val icon: ImageVector, val route: String)
-    val tabs = listOf(
-        TabDef("首页", Icons.Filled.Home, Screen.Home.route),
-        TabDef("日记", Icons.Filled.CalendarMonth, Screen.Diary.route),
-        TabDef("我的", Icons.Filled.Person, Screen.Profile.route),
-        TabDef("设置", Icons.Filled.Settings, Screen.Settings.route)
-    )
 
     Scaffold(
         bottomBar = {
@@ -177,20 +251,17 @@ fun MainScaffold(rootNav: androidx.navigation.NavHostController) {
                 contentColor = MaterialTheme.colorScheme.onSurface,
                 tonalElevation = 0.dp
             ) {
-                tabs.forEach { tab ->
+                bottomNavItems.forEach { tab ->
                     NavigationBarItem(
                         icon = {
-                            Icon(
-                                tab.icon,
-                                contentDescription = tab.label,
-                                modifier = Modifier.size(24.dp)
-                            )
+                            Icon(tab.icon, contentDescription = tab.label, modifier = Modifier.size(24.dp))
                         },
                         label = {
                             Text(
                                 text = tab.label,
                                 style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.Medium
+                                fontWeight = FontWeight.Medium,
+                                maxLines = 1
                             )
                         },
                         selected = currentRoute == tab.route,
@@ -222,55 +293,55 @@ fun MainScaffold(rootNav: androidx.navigation.NavHostController) {
         ) {
             composable(Screen.Home.route) {
                 HomeScreen(
-                    onNavigateToAddMeal = {
-                        rootNav.navigate(Screen.AddMeal.createRoute(it))
+                    onNavigateToAddMeal = { typeId, dateEpoch ->
+                        rootNav.navigate(Screen.AddMeal.createRoute(typeId, dateEpoch))
                     },
-                    onNavigateToAddActivity = {
-                        rootNav.navigate(Screen.AddActivity.route)
+                    onNavigateToAddActivity = { dateEpoch ->
+                        rootNav.navigate(Screen.AddActivity.createRoute(dateEpoch))
                     },
-                    onNavigateToSources = {
-                        rootNav.navigate(Screen.Sources.route)
+                    onNavigateToSources = { rootNav.navigate(Screen.Sources.route) },
+                    onNavigateToCamera = { typeId, dateEpoch ->
+                        rootNav.navigate(Screen.CameraCapture.createRoute(typeId, dateEpoch))
                     },
-                    onNavigateToCamera = { intakeTypeId ->
-                        rootNav.navigate(Screen.CameraCapture.createRoute(intakeTypeId))
+                    onNavigateToEdit = { intakeId, mealId, typeId, dateEpoch ->
+                        rootNav.navigate(Screen.MealEdit.createRoute(intakeId, mealId, typeId, dateEpoch))
                     },
-                    onNavigateToEdit = { mealId, typeId ->
-                        rootNav.navigate(Screen.MealEdit.createRoute(mealId, typeId))
+                    onNavigateToLibrary = { typeId, dateEpoch ->
+                        rootNav.navigate(Screen.FoodLibrary.createRoute(typeId, dateEpoch))
                     },
                     rootNavController = rootNav
                 )
             }
             composable(Screen.Diary.route) {
                 DiaryScreen(
-                    onNavigateToSources = {
-                        rootNav.navigate(Screen.Sources.route)
-                    },
-                    onNavigateToEdit = { mealId, typeId, dateEpochDay ->
-                        rootNav.navigate(Screen.MealEdit.createRoute(mealId, typeId, dateEpochDay))
+                    onNavigateToSources = { rootNav.navigate(Screen.Sources.route) },
+                    onNavigateToEdit = { intakeId, mealId, typeId, dateEpochDay ->
+                        rootNav.navigate(Screen.MealEdit.createRoute(intakeId, mealId, typeId, dateEpochDay))
                     },
                     onNavigateToAddMeal = { typeId, dateEpochDay ->
                         rootNav.navigate(Screen.AddMeal.createRoute(typeId, dateEpochDay))
                     },
-                    onNavigateToAddActivity = {
-                        rootNav.navigate(Screen.AddActivity.route)
+                    onNavigateToAddActivity = { dateEpochDay ->
+                        rootNav.navigate(Screen.AddActivity.createRoute(dateEpochDay))
                     }
+                )
+            }
+            composable(Screen.Analytics.route) {
+                AnalyticsScreen(
+                    onNavigateToWeightHistory = { rootNav.navigate(Screen.WeightHistory.route) },
+                    onNavigateToSources = { rootNav.navigate(Screen.Sources.route) }
                 )
             }
             composable(Screen.Profile.route) {
                 ProfileScreen(
-                    onNavigateToWeightHistory = {
-                        rootNav.navigate(Screen.WeightHistory.route)
-                    },
-                    onNavigateToSources = {
-                        rootNav.navigate(Screen.Sources.route)
-                    }
+                    onNavigateToWeightHistory = { rootNav.navigate(Screen.WeightHistory.route) },
+                    onNavigateToFoodLibrary = { rootNav.navigate(Screen.FoodLibrary.createRoute()) },
+                    onNavigateToSources = { rootNav.navigate(Screen.Sources.route) }
                 )
             }
             composable(Screen.Settings.route) {
                 SettingsScreen(
-                    onNavigateToSources = {
-                        rootNav.navigate(Screen.Sources.route)
-                    }
+                    onNavigateToSources = { rootNav.navigate(Screen.Sources.route) }
                 )
             }
         }
