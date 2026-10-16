@@ -5,8 +5,11 @@ import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.nutritracker.data.DataExportManager
-import com.example.nutritracker.data.ImportResult
+import com.example.nutritracker.data.entity.ThemeMode
 import com.example.nutritracker.data.repository.SettingsRepository
+import com.example.nutritracker.data.repository.UserRepository
+import com.example.nutritracker.widget.NutriTrackerWidgetUpdater
+import com.example.nutritracker.worker.ReminderScheduler
 import com.google.gson.Gson
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
@@ -17,75 +20,124 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
-import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 
 enum class TestStatus { IDLE, TESTING, SUCCESS, FAILURE }
-
 enum class ExportImportStatus { IDLE, RUNNING, SUCCESS, FAILURE }
 
 data class SettingsState(
-    val dayBoundaryStr: String = "0",
-    val kcalAdjStr: String = "0",
+    val dayBoundaryMinutes: Int = 0,
+    val kcalAdjustment: Double = 0.0,
     val carbPct: Double = 0.60,
     val fatPct: Double = 0.25,
     val proteinPct: Double = 0.15,
-    val waterGoalStr: String = "2000",
+    val waterGoalMl: Int = 2000,
+    val waterQuickAmounts: List<Int> = listOf(150, 250, 350, 500),
     val aiApiKey: String = "",
     val aiBaseUrl: String = "",
     val aiModel: String = "",
-    val testStatus: TestStatus = TestStatus.IDLE,
-    val testMessage: String = "",
-    val exportStatus: ExportImportStatus = ExportImportStatus.IDLE,
-    val exportMessage: String = "",
-    val importStatus: ExportImportStatus = ExportImportStatus.IDLE,
-    val importMessage: String = ""
+    val aiAutoConfirm: Boolean = false,
+    val themeMode: ThemeMode = ThemeMode.SYSTEM,
+    val dynamicColorEnabled: Boolean = true,
+    val useKj: Boolean = false,
+    val usesImperialUnits: Boolean = false,
+    val mealReminderEnabled: Boolean = false,
+    val breakfastReminderMin: Int = 480,
+    val lunchReminderMin: Int = 750,
+    val dinnerReminderMin: Int = 1110,
+    val waterReminderEnabled: Boolean = false,
+    val waterReminderIntervalMin: Int = 120
 )
 
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
-    application: Application,
+    private val app: Application,
     private val settingsRepo: SettingsRepository,
-    private val exportManager: DataExportManager
-) : AndroidViewModel(application) {
+    private val userRepo: UserRepository,
+    private val exportManager: DataExportManager,
+    private val okHttpClient: OkHttpClient,
+    private val gson: Gson
+) : AndroidViewModel(app) {
 
-    private data class CalcValues(val dayBnd: Int, val kcalAdj: Double, val carb: Double, val fat: Double, val protein: Double)
-    private data class AiValues(val water: Int, val aiKey: String, val aiUrl: String, val aiModel: String)
+    private data class CalcPart(val dayBnd: Int, val kcalAdj: Double, val carb: Double, val fat: Double, val protein: Double)
+    private data class AiPart(val waterGoal: Int, val quickWater: List<Int>, val apiKey: String, val baseUrl: String, val model: String, val autoConfirm: Boolean)
+    private data class PrefsPart(val theme: ThemeMode, val dynamicColor: Boolean, val useKj: Boolean, val imperial: Boolean)
+    private data class ReminderPart(val mealOn: Boolean, val bMin: Int, val lMin: Int, val dMin: Int, val waterOn: Boolean, val waterInterval: Int)
+
+    private val calcFlow = combine(
+        settingsRepo.dayBoundaryMinutes,
+        settingsRepo.kcalAdjustment,
+        settingsRepo.carbPct,
+        settingsRepo.fatPct,
+        settingsRepo.proteinPct
+    ) { db, ka, c, f, p -> CalcPart(db, ka, c, f, p) }
+
+    private val aiFlow = combine(
+        combine(settingsRepo.waterGoalMl, settingsRepo.waterQuickAmounts, settingsRepo.aiAutoConfirm) { wg, wq, ac -> Triple(wg, wq, ac) },
+        combine(settingsRepo.aiApiKey, settingsRepo.aiBaseUrl, settingsRepo.aiModel) { k, u, m -> Triple(k, u, m) }
+    ) { w, ai ->
+        AiPart(w.first, w.second, ai.first, ai.second, ai.third, w.third)
+    }
+
+    private val prefsFlow = combine(
+        settingsRepo.themeMode,
+        settingsRepo.dynamicColorEnabled,
+        settingsRepo.useKj,
+        userRepo.getUserFlow()
+    ) { tm, dc, kj, u ->
+        PrefsPart(tm, dc, kj, u?.usesImperialUnits ?: false)
+    }
+
+    private val reminderFlow = combine(
+        combine(settingsRepo.mealReminderEnabled, settingsRepo.breakfastReminderMin, settingsRepo.lunchReminderMin) { on, b, l -> Triple(on, b, l) },
+        combine(settingsRepo.dinnerReminderMin, settingsRepo.waterReminderEnabled, settingsRepo.waterReminderIntervalMin) { d, won, wi -> Triple(d, won, wi) }
+    ) { m, w ->
+        ReminderPart(m.first, m.second, m.third, w.first, w.second, w.third)
+    }
 
     val state: StateFlow<SettingsState> = combine(
-        combine(
-            settingsRepo.dayBoundaryMinutes,
-            settingsRepo.kcalAdjustment,
-            settingsRepo.carbPct,
-            settingsRepo.fatPct,
-            settingsRepo.proteinPct
-        ) { dayBnd, kcalAdj, carb, fat, protein ->
-            CalcValues(dayBnd, kcalAdj, carb, fat, protein)
-        },
-        combine(
-            settingsRepo.waterGoalMl,
-            settingsRepo.aiApiKey,
-            settingsRepo.aiBaseUrl,
-            settingsRepo.aiModel
-        ) { water, aiKey, aiUrl, aiModel ->
-            AiValues(water, aiKey, aiUrl, aiModel)
-        }
-    ) { calc: CalcValues, ai: AiValues ->
+        calcFlow,
+        aiFlow,
+        prefsFlow,
+        reminderFlow
+    ) { calc, ai, prefs, rem ->
         SettingsState(
-            dayBoundaryStr = calc.dayBnd.toString(),
-            kcalAdjStr = calc.kcalAdj.toInt().toString(),
-            carbPct = calc.carb, fatPct = calc.fat, proteinPct = calc.protein,
-            waterGoalStr = ai.water.toString(),
-            aiApiKey = ai.aiKey, aiBaseUrl = ai.aiUrl, aiModel = ai.aiModel
+            dayBoundaryMinutes = calc.dayBnd,
+            kcalAdjustment = calc.kcalAdj,
+            carbPct = calc.carb,
+            fatPct = calc.fat,
+            proteinPct = calc.protein,
+            waterGoalMl = ai.waterGoal,
+            waterQuickAmounts = ai.quickWater,
+            aiApiKey = ai.apiKey,
+            aiBaseUrl = ai.baseUrl,
+            aiModel = ai.model,
+            aiAutoConfirm = ai.autoConfirm,
+            themeMode = prefs.theme,
+            dynamicColorEnabled = prefs.dynamicColor,
+            useKj = prefs.useKj,
+            usesImperialUnits = prefs.imperial,
+            mealReminderEnabled = rem.mealOn,
+            breakfastReminderMin = rem.bMin,
+            lunchReminderMin = rem.lMin,
+            dinnerReminderMin = rem.dMin,
+            waterReminderEnabled = rem.waterOn,
+            waterReminderIntervalMin = rem.waterInterval
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), SettingsState())
 
-    fun updateDayBoundary(v: String) {
-        v.toIntOrNull()?.let { viewModelScope.launch { settingsRepo.setDayBoundaryMinutes(it) } }
+    fun updateDayBoundary(minutes: Int) {
+        viewModelScope.launch {
+            settingsRepo.setDayBoundaryMinutes(minutes.coerceIn(0, 1439))
+            NutriTrackerWidgetUpdater.enqueueUpdate(app)
+        }
     }
 
-    fun updateKcalAdj(v: String) {
-        v.toDoubleOrNull()?.let { viewModelScope.launch { settingsRepo.setKcalAdjustment(it) } }
+    fun updateKcalAdj(kcal: Double) {
+        viewModelScope.launch {
+            settingsRepo.setKcalAdjustment(kcal.coerceIn(-3000.0, 3000.0))
+            NutriTrackerWidgetUpdater.enqueueUpdate(app)
+        }
     }
 
     fun updateMacros(carb: Double, fat: Double, protein: Double) {
@@ -96,8 +148,15 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
-    fun updateWaterGoal(v: String) {
-        v.toIntOrNull()?.let { viewModelScope.launch { settingsRepo.setWaterGoalMl(it) } }
+    fun updateWaterGoal(ml: Int) {
+        viewModelScope.launch {
+            settingsRepo.setWaterGoalMl(ml.coerceIn(100, 20000))
+            NutriTrackerWidgetUpdater.enqueueUpdate(app)
+        }
+    }
+
+    fun updateWaterQuickAmounts(amounts: List<Int>) {
+        viewModelScope.launch { settingsRepo.setWaterQuickAmounts(amounts) }
     }
 
     fun updateAiConfig(apiKey: String, baseUrl: String, model: String) {
@@ -108,66 +167,138 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
+    fun setAiAutoConfirm(enabled: Boolean) {
+        viewModelScope.launch { settingsRepo.setAiAutoConfirm(enabled) }
+    }
+
+    fun setThemeMode(mode: ThemeMode) {
+        viewModelScope.launch { settingsRepo.setThemeMode(mode) }
+    }
+
+    fun setDynamicColorEnabled(enabled: Boolean) {
+        viewModelScope.launch { settingsRepo.setDynamicColorEnabled(enabled) }
+    }
+
+    fun setUseKj(useKj: Boolean) {
+        viewModelScope.launch {
+            settingsRepo.setUseKj(useKj)
+            NutriTrackerWidgetUpdater.enqueueUpdate(app)
+        }
+    }
+
+    fun setUsesImperialUnits(imperial: Boolean) {
+        viewModelScope.launch {
+            val user = userRepo.getUser() ?: return@launch
+            userRepo.upsert(user.copy(usesImperialUnits = imperial))
+        }
+    }
+
+    fun setMealReminderEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            settingsRepo.setMealReminderEnabled(enabled)
+            syncWorkReminders()
+        }
+    }
+
+    fun setBreakfastReminderMin(min: Int) {
+        viewModelScope.launch {
+            settingsRepo.setBreakfastReminderMin(min)
+            syncWorkReminders()
+        }
+    }
+
+    fun setLunchReminderMin(min: Int) {
+        viewModelScope.launch {
+            settingsRepo.setLunchReminderMin(min)
+            syncWorkReminders()
+        }
+    }
+
+    fun setDinnerReminderMin(min: Int) {
+        viewModelScope.launch {
+            settingsRepo.setDinnerReminderMin(min)
+            syncWorkReminders()
+        }
+    }
+
+    fun setWaterReminderEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            settingsRepo.setWaterReminderEnabled(enabled)
+            syncWorkReminders()
+        }
+    }
+
+    fun setWaterReminderIntervalMin(min: Int) {
+        viewModelScope.launch {
+            settingsRepo.setWaterReminderIntervalMin(min)
+            syncWorkReminders()
+        }
+    }
+
+    private suspend fun syncWorkReminders() {
+        ReminderScheduler.syncReminders(
+            context = app,
+            mealEnabled = settingsRepo.mealReminderEnabled.first(),
+            breakfastMin = settingsRepo.breakfastReminderMin.first(),
+            lunchMin = settingsRepo.lunchReminderMin.first(),
+            dinnerMin = settingsRepo.dinnerReminderMin.first(),
+            waterEnabled = settingsRepo.waterReminderEnabled.first(),
+            waterIntervalMin = settingsRepo.waterReminderIntervalMin.first()
+        )
+    }
+
     private val _testState = MutableStateFlow(TestStatus.IDLE to "")
     val testState: StateFlow<Pair<TestStatus, String>> = _testState.asStateFlow()
 
     fun testAiConnection(apiKey: String, baseUrl: String, model: String) {
-        if (apiKey.isBlank() || baseUrl.isBlank() || model.isBlank()) {
+        val cleanUrl = baseUrl.trim().trimEnd('/')
+        val cleanKey = apiKey.trim()
+        val cleanModel = model.trim()
+        if (cleanKey.isBlank() || cleanUrl.isBlank() || cleanModel.isBlank()) {
             _testState.value = TestStatus.FAILURE to "请填写完整的 API Key、Base URL 和模型名称"
             return
         }
 
         viewModelScope.launch {
             _testState.value = TestStatus.TESTING to "正在测试连接..."
-
             try {
                 val result = withContext(Dispatchers.IO) {
-                    val client = OkHttpClient.Builder()
-                        .connectTimeout(15, TimeUnit.SECONDS)
-                        .readTimeout(30, TimeUnit.SECONDS)
-                        .build()
-
-                    val requestBody = Gson().toJson(mapOf(
-                        "model" to model,
-                        "messages" to listOf(
-                            mapOf("role" to "user", "content" to "回复OK两个字")
-                        ),
-                        "max_tokens" to 10
-                    ))
-
+                    val requestBody = gson.toJson(
+                        mapOf(
+                            "model" to cleanModel,
+                            "messages" to listOf(mapOf("role" to "user", "content" to "回复OK两个字")),
+                            "max_tokens" to 10
+                        )
+                    )
                     val request = Request.Builder()
-                        .url("${baseUrl.trimEnd('/')}/chat/completions")
-                        .addHeader("Authorization", "Bearer $apiKey")
+                        .url("$cleanUrl/chat/completions")
+                        .addHeader("Authorization", "Bearer $cleanKey")
                         .addHeader("Content-Type", "application/json")
                         .post(requestBody.toRequestBody("application/json".toMediaType()))
                         .build()
 
-                    val response = client.newCall(request).execute()
-                    val body = response.body?.string() ?: ""
-
-                    if (response.isSuccessful) {
-                        val json = Gson().fromJson(body, Map::class.java)
+                    okHttpClient.newCall(request).execute().use { response ->
+                        val body = response.body?.string() ?: ""
+                        if (!response.isSuccessful) {
+                            return@withContext TestStatus.FAILURE to "HTTP ${response.code}: ${response.message}"
+                        }
+                        val json = gson.fromJson(body, Map::class.java)
                         @Suppress("UNCHECKED_CAST")
-                        val choices = json["choices"] as? List<Map<String, Any>>
+                        val choices = json?.get("choices") as? List<Map<String, Any>>
                         val message = choices?.firstOrNull()?.get("message") as? Map<*, *>
                         val content = message?.get("content") as? String
-
-                        if (content != null) {
-                            // 测试多模态能力
-                            val multimodalResult = testMultimodalCapability(client, apiKey, baseUrl, model)
-                            if (multimodalResult.first) {
-                                TestStatus.SUCCESS to "连接成功！模型支持多模态输入"
-                            } else {
-                                TestStatus.SUCCESS to "连接成功，但多模态测试失败: ${multimodalResult.second}"
-                            }
-                        } else {
-                            TestStatus.FAILURE to "API 返回格式异常: $body"
+                        if (content == null) {
+                            return@withContext TestStatus.FAILURE to "API 返回格式异常: ${body.take(150)}"
                         }
+                    }
+
+                    val multimodalResult = testMultimodalCapability(cleanKey, cleanUrl, cleanModel)
+                    if (multimodalResult.first) {
+                        TestStatus.SUCCESS to "连接成功！模型支持文本与多模态图片输入"
                     } else {
-                        TestStatus.FAILURE to "HTTP ${response.code}: ${response.message}"
+                        TestStatus.SUCCESS to "文本连接成功，但多模态测试未通过: ${multimodalResult.second}"
                     }
                 }
-
                 _testState.value = result
             } catch (e: Exception) {
                 _testState.value = TestStatus.FAILURE to "连接失败: ${e.message}"
@@ -175,17 +306,14 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
-    private suspend fun testMultimodalCapability(
-        client: OkHttpClient,
+    private fun testMultimodalCapability(
         apiKey: String,
-        baseUrl: String,
+        cleanUrl: String,
         model: String
-    ): Pair<Boolean, String> {
-        return try {
-            // 创建一个最小的测试图片 (1x1 像素的 PNG)
-            val testImageBase64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
-
-            val requestBody = Gson().toJson(mapOf(
+    ): Pair<Boolean, String> = try {
+        val testImageBase64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
+        val requestBody = gson.toJson(
+            mapOf(
                 "model" to model,
                 "messages" to listOf(
                     mapOf(
@@ -203,43 +331,31 @@ class SettingsViewModel @Inject constructor(
                     )
                 ),
                 "max_tokens" to 10
-            ))
+            )
+        )
+        val request = Request.Builder()
+            .url("$cleanUrl/chat/completions")
+            .addHeader("Authorization", "Bearer $apiKey")
+            .addHeader("Content-Type", "application/json")
+            .post(requestBody.toRequestBody("application/json".toMediaType()))
+            .build()
 
-            val request = Request.Builder()
-                .url("${baseUrl.trimEnd('/')}/chat/completions")
-                .addHeader("Authorization", "Bearer $apiKey")
-                .addHeader("Content-Type", "application/json")
-                .post(requestBody.toRequestBody("application/json".toMediaType()))
-                .build()
-
-            val response = client.newCall(request).execute()
+        okHttpClient.newCall(request).execute().use { response ->
             val body = response.body?.string() ?: ""
-
-            if (response.isSuccessful) {
-                val json = Gson().fromJson(body, Map::class.java)
-                @Suppress("UNCHECKED_CAST")
-                val choices = json["choices"] as? List<Map<String, Any>>
-                val message = choices?.firstOrNull()?.get("message") as? Map<*, *>
-                val content = message?.get("content") as? String
-
-                if (content != null) {
-                    Pair(true, "多模态测试通过")
-                } else {
-                    Pair(false, "返回格式异常")
-                }
-            } else {
-                Pair(false, "HTTP ${response.code}")
-            }
-        } catch (e: Exception) {
-            Pair(false, e.message ?: "未知错误")
+            if (!response.isSuccessful) return false to "HTTP ${response.code}"
+            val json = gson.fromJson(body, Map::class.java)
+            @Suppress("UNCHECKED_CAST")
+            val choices = json?.get("choices") as? List<Map<String, Any>>
+            val message = choices?.firstOrNull()?.get("message") as? Map<*, *>
+            if (message?.get("content") != null) true to "通过" else false to "返回格式异常"
         }
+    } catch (e: Exception) {
+        false to (e.message ?: "未知错误")
     }
 
     fun resetTestState() {
         _testState.value = TestStatus.IDLE to ""
     }
-
-    // ── 导出导入 ──────────────────────────────────────────────────────────────
 
     private val _exportStatus = MutableStateFlow(ExportImportStatus.IDLE to "")
     val exportStatus: StateFlow<Pair<ExportImportStatus, String>> = _exportStatus.asStateFlow()
@@ -264,13 +380,13 @@ class SettingsViewModel @Inject constructor(
             _importStatus.value = ExportImportStatus.RUNNING to "正在导入..."
             val result = exportManager.importData(uri)
             _importStatus.value = if (result.isSuccess) {
+                NutriTrackerWidgetUpdater.enqueueUpdate(app)
                 val r = result.getOrNull()!!
                 val msg = buildString {
-                    append("导入完成: ")
-                    append("食物 ${r.mealsImported} 条${if (r.mealsSkipped > 0) " (跳过 ${r.mealsSkipped} 条重复)" else ""}")
-                    append(", 饮食记录 ${r.intakesImported} 条")
-                    append(", 活动 ${r.activitiesImported} 条")
-                    if (r.trackedDaysImported > 0) append(", 追踪日 ${r.trackedDaysImported} 条")
+                    append("导入完成: 食物 ${r.mealsImported} 条")
+                    if (r.mealsSkipped > 0) append("(复用 ${r.mealsSkipped})")
+                    append(", 饮食 ${r.intakesImported} 条, 活动 ${r.activitiesImported} 条")
+                    if (r.recipesImported > 0) append(", 食谱 ${r.recipesImported} 个")
                     if (r.weightLogsImported > 0) append(", 体重 ${r.weightLogsImported} 条")
                     if (r.waterIntakesImported > 0) append(", 饮水 ${r.waterIntakesImported} 条")
                     if (r.imagesImported > 0) append(", 图片 ${r.imagesImported} 张")
@@ -281,7 +397,4 @@ class SettingsViewModel @Inject constructor(
             }
         }
     }
-
-    fun resetExportStatus() { _exportStatus.value = ExportImportStatus.IDLE to "" }
-    fun resetImportStatus() { _importStatus.value = ExportImportStatus.IDLE to "" }
 }
