@@ -5,6 +5,7 @@ build/
 local.properties
 *.properties
 !gradle.properties
+!version.properties
 
 # ── Android Studio ───────────────────────────────────
 *.iml
