@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="168dp"
+    android:height="168dp"
+    android:viewportWidth="168"
+    android:viewportHeight="168">
+    <path
+        android:fillColor="#F7F9FF"
+        android:pathData="M20,4 L148,4 Q164,4 164,20 L164,148 Q164,164 148,164 L20,164 Q4,164 4,148 L4,20 Q4,4 20,4 Z"
+        android:strokeColor="#E1E6F2"
+        android:strokeWidth="1.5" />
+    <path
+        android:fillColor="#909BB5"
+        android:pathData="M20,18 L76,18 Q79,18 79,21 L79,23 Q79,26 76,26 L20,26 Q17,26 17,23 L17,21 Q17,18 20,18 Z" />
+    <path
+        android:fillColor="#415F91"
+        android:pathData="M21,34 L112,34 Q116,34 116,38 L116,46 Q116,50 112,50 L21,50 Q17,50 17,46 L17,38 Q17,34 21,34 Z" />
+    <path
+        android:fillColor="#E1E6F2"
+        android:pathData="M20,60 L148,60 Q151,60 151,63 L151,64 Q151,67 148,67 L20,67 Q17,67 17,64 L17,63 Q17,60 20,60 Z" />
+    <path
+        android:fillColor="#415F91"
+        android:pathData="M20,60 L108,60 Q111,60 111,63 L111,64 Q111,67 108,67 L20,67 Q17,67 17,64 L17,63 Q17,60 20,60 Z" />
+    <path
+        android:fillColor="#EEF2FB"
+        android:pathData="M22,76 L146,76 Q151,76 151,81 L151,95 Q151,100 146,100 L22,100 Q17,100 17,95 L17,81 Q17,76 22,76 Z" />
+    <path
+        android:fillColor="#E1E6F2"
+        android:pathData="M20,110 L148,110 Q151,110 151,113 L151,114 Q151,117 148,117 L20,117 Q17,117 17,114 L17,113 Q17,110 20,110 Z" />
+    <path
+        android:fillColor="#29B6F6"
+        android:pathData="M20,110 L96,110 Q99,110 99,113 L99,114 Q99,117 96,117 L20,117 Q17,117 17,114 L17,113 Q17,110 20,110 Z" />
+    <path
+        android:fillColor="#DDF3FF"
+        android:pathData="M23,126 L78,126 Q83,126 83,131 L83,144 Q83,149 78,149 L23,149 Q17,149 17,144 L17,131 Q17,126 23,126 Z" />
+    <path
+        android:fillColor="#D6E3FF"
+        android:pathData="M94,126 L146,126 Q151,126 151,131 L151,144 Q151,149 146,149 L94,149 Q89,149 89,144 L89,131 Q89,126 94,126 Z" />
+</vector>

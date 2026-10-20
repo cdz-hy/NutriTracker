@@ -1,5 +1,20 @@
 <resources>
     <string name="app_name">NutriTracker</string>
-    <string name="widget_description">展示今日剩余热量、饮水进度，并提供快捷记水与拍照识图入口</string>
-    <string name="medical_disclaimer">免责声明：NutriTracker 提供的热量、宏量及微量营养素参考值仅基于公开营养学公式与 AI 视觉/文本估算，仅供个人健康生活记录参考，不构成任何医疗诊断或临床营养指导。</string>
+    <string name="widget_overview_label">Nutrition Overview (4×2)</string>
+    <string name="widget_description">Shows remaining calories, 3 macros, and water progress with quick +250ml logging, photo scan, and adaptive sizing</string>
+    <string name="widget_compact_label">Compact Tracker (2×2)</string>
+    <string name="widget_compact_description">Compact 2×2 card for remaining calories, macro summary, water progress, and one-tap water logging</string>
+    <string name="medical_disclaimer">Disclaimer: Calorie, macro, and micronutrient targets provided by NutriTracker are based on public nutritional formulas and AI vision/text estimates for personal wellness tracking only, and do not constitute medical diagnosis or clinical nutrition advice.</string>
+
+    <string name="widget_preview_calories_remaining">Remaining Today</string>
+    <string name="widget_preview_calorie_value">1,420 kcal</string>
+    <string name="widget_preview_calorie_breakdown">In 678 · Burned 180 · Goal 2,098</string>
+    <string name="widget_preview_scan_meal">Photo Log</string>
+    <string name="widget_preview_carbs">Carbs</string>
+    <string name="widget_preview_fat">Fat</string>
+    <string name="widget_preview_protein">Protein</string>
+    <string name="widget_preview_compact_macros">C 85 · F 22 · P 46g</string>
+    <string name="widget_preview_water">Water 1000 / 2000 ml</string>
+    <string name="widget_preview_add_water">+250ml</string>
+    <string name="widget_preview_scan_short">Photo</string>
 </resources>

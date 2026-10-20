@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="320dp"
+    android:height="156dp"
+    android:viewportWidth="320"
+    android:viewportHeight="156">
+    <path
+        android:fillColor="#F7F9FF"
+        android:pathData="M20,4 L300,4 Q316,4 316,20 L316,136 Q316,152 300,152 L20,152 Q4,152 4,136 L4,20 Q4,4 20,4 Z"
+        android:strokeColor="#E1E6F2"
+        android:strokeWidth="1.5" />
+    <!-- Primary action pill -->
+    <path
+        android:fillColor="#D6E3FF"
+        android:pathData="M236,18 L294,18 Q302,18 302,26 L302,42 Q302,50 294,50 L236,50 Q228,50 228,42 L228,26 Q228,18 236,18 Z" />
+    <!-- Hero title bars -->
+    <path
+        android:fillColor="#909BB5"
+        android:pathData="M20,20 L92,20 Q95,20 95,23 L95,25 Q95,28 92,28 L20,28 Q17,28 17,25 L17,23 Q17,20 20,20 Z" />
+    <path
+        android:fillColor="#415F91"
+        android:pathData="M21,34 L126,34 Q130,34 130,38 L130,45 Q130,49 126,49 L21,49 Q17,49 17,45 L17,38 Q17,34 21,34 Z" />
+    <!-- Calorie track + fill -->
+    <path
+        android:fillColor="#E1E6F2"
+        android:pathData="M20,58 L300,58 Q303,58 303,61 L303,62 Q303,65 300,65 L20,65 Q17,65 17,62 L17,61 Q17,58 20,58 Z" />
+    <path
+        android:fillColor="#415F91"
+        android:pathData="M20,58 L195,58 Q198,58 198,61 L198,62 Q198,65 195,65 L20,65 Q17,65 17,62 L17,61 Q17,58 20,58 Z" />
+    <!-- Macro cards -->
+    <path
+        android:fillColor="#EEF2FB"
+        android:pathData="M23,74 L102,74 Q108,74 108,80 L108,98 Q108,104 102,104 L23,104 Q17,104 17,98 L17,80 Q17,74 23,74 Z" />
+    <path
+        android:fillColor="#4A90D9"
+        android:pathData="M27,82 L68,82 Q70,82 70,84 L70,86 Q70,88 68,88 L27,88 Q25,88 25,86 L25,84 Q25,82 27,82 Z" />
+    <path
+        android:fillColor="#EEF2FB"
+        android:pathData="M122,74 L200,74 Q206,74 206,80 L206,98 Q206,104 200,104 L122,104 Q116,104 116,98 L116,80 Q116,74 122,74 Z" />
+    <path
+        android:fillColor="#E8A33D"
+        android:pathData="M126,82 L168,82 Q170,82 170,84 L170,86 Q170,88 168,88 L126,88 Q124,88 124,86 L124,84 Q124,82 126,82 Z" />
+    <path
+        android:fillColor="#EEF2FB"
+        android:pathData="M220,74 L297,74 Q303,74 303,80 L303,98 Q303,104 297,104 L220,104 Q214,104 214,98 L214,80 Q214,74 220,74 Z" />
+    <path
+        android:fillColor="#9B59B6"
+        android:pathData="M224,82 L266,82 Q268,82 268,84 L268,86 Q268,88 266,88 L224,88 Q222,88 222,86 L222,84 Q222,82 224,82 Z" />
+    <!-- Water bar & button -->
+    <path
+        android:fillColor="#E1E6F2"
+        android:pathData="M20,126 L220,126 Q223,126 223,129 L223,130 Q223,133 220,133 L20,133 Q17,133 17,130 L17,129 Q17,126 20,126 Z" />
+    <path
+        android:fillColor="#29B6F6"
+        android:pathData="M20,126 L130,126 Q133,126 133,129 L133,130 Q133,133 130,133 L20,133 Q17,133 17,130 L17,129 Q17,126 20,126 Z" />
+    <path
+        android:fillColor="#DDF3FF"
+        android:pathData="M242,115 L296,115 Q303,115 303,122 L303,134 Q303,141 296,141 L242,141 Q235,141 235,134 L235,122 Q235,115 242,115 Z" />
+</vector>

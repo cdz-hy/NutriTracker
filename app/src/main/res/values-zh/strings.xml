@@ -1,0 +1,20 @@
+<resources>
+    <string name="app_name">NutriTracker</string>
+    <string name="widget_overview_label">营养概览 (4×2)</string>
+    <string name="widget_description">展示今日剩余热量、三大宏量营养素与饮水进度，支持快捷记水、拍照识图与缩放自适应</string>
+    <string name="widget_compact_label">轻量看板 (2×2)</string>
+    <string name="widget_compact_description">紧凑 2×2 桌面小卡片，随时查看剩余热量、宏量摘要与饮水进度，并支持一键记水</string>
+    <string name="medical_disclaimer">免责声明：NutriTracker 提供的热量、宏量及微量营养素参考值仅基于公开营养学公式与 AI 视觉/文本估算，仅供个人健康生活记录参考，不构成任何医疗诊断或临床营养指导。</string>
+
+    <string name="widget_preview_calories_remaining">今日剩余热量</string>
+    <string name="widget_preview_calorie_value">1,420 kcal</string>
+    <string name="widget_preview_calorie_breakdown">摄入 678 · 消耗 180 · 目标 2098</string>
+    <string name="widget_preview_scan_meal">拍照记餐</string>
+    <string name="widget_preview_carbs">碳水</string>
+    <string name="widget_preview_fat">脂肪</string>
+    <string name="widget_preview_protein">蛋白质</string>
+    <string name="widget_preview_compact_macros">碳85 · 脂22 · 蛋46g</string>
+    <string name="widget_preview_water">饮水 1000 / 2000 ml</string>
+    <string name="widget_preview_add_water">+250ml</string>
+    <string name="widget_preview_scan_short">拍照</string>
+</resources>
