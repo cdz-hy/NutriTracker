@@ -4,8 +4,10 @@ import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.*
 import androidx.datastore.preferences.preferencesDataStore
+import com.example.nutritracker.data.entity.AppLanguage
 import com.example.nutritracker.data.entity.ThemeMode
 import com.example.nutritracker.util.CryptoManager
+import com.example.nutritracker.util.LocaleHelper
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -34,6 +36,7 @@ class SettingsRepository @Inject constructor(
         val AI_AUTO_CONFIRM = booleanPreferencesKey("ai_auto_confirm")
         val ONBOARDING_DONE = booleanPreferencesKey("onboarding_done")
         val THEME_MODE = stringPreferencesKey("theme_mode")
+        val APP_LANGUAGE = stringPreferencesKey("app_language")
         val DYNAMIC_COLOR_ENABLED = booleanPreferencesKey("dynamic_color_enabled")
         val USE_KJ = booleanPreferencesKey("use_kj")
         val MEAL_REMINDER_ENABLED = booleanPreferencesKey("meal_reminder_enabled")
@@ -72,6 +75,15 @@ class SettingsRepository @Inject constructor(
     val themeMode: Flow<ThemeMode> = context.dataStore.data.map { prefs ->
         runCatching { ThemeMode.valueOf(prefs[Keys.THEME_MODE] ?: ThemeMode.SYSTEM.name) }
             .getOrDefault(ThemeMode.SYSTEM)
+    }
+    val appLanguage: Flow<AppLanguage> = context.dataStore.data.map { prefs ->
+        val raw = prefs[Keys.APP_LANGUAGE]
+        val lang = runCatching { AppLanguage.valueOf(raw ?: AppLanguage.SYSTEM.name) }
+            .getOrDefault(AppLanguage.SYSTEM)
+        if (raw != null && LocaleHelper.getSavedLanguageSync(context) != lang) {
+            LocaleHelper.persistSync(context, lang)
+        }
+        lang
     }
     val dynamicColorEnabled: Flow<Boolean> = context.dataStore.data.map { it[Keys.DYNAMIC_COLOR_ENABLED] ?: true }
     val useKj: Flow<Boolean> = context.dataStore.data.map { it[Keys.USE_KJ] ?: false }
@@ -123,6 +135,10 @@ class SettingsRepository @Inject constructor(
     suspend fun setAiAutoConfirm(v: Boolean) = context.dataStore.edit { it[Keys.AI_AUTO_CONFIRM] = v }
     suspend fun setOnboardingDone(v: Boolean) = context.dataStore.edit { it[Keys.ONBOARDING_DONE] = v }
     suspend fun setThemeMode(mode: ThemeMode) = context.dataStore.edit { it[Keys.THEME_MODE] = mode.name }
+    suspend fun setAppLanguage(language: AppLanguage) {
+        LocaleHelper.persistSync(context, language)
+        context.dataStore.edit { it[Keys.APP_LANGUAGE] = language.name }
+    }
     suspend fun setDynamicColorEnabled(enabled: Boolean) = context.dataStore.edit { it[Keys.DYNAMIC_COLOR_ENABLED] = enabled }
     suspend fun setUseKj(useKj: Boolean) = context.dataStore.edit { it[Keys.USE_KJ] = useKj }
     suspend fun setMealReminderEnabled(enabled: Boolean) = context.dataStore.edit { it[Keys.MEAL_REMINDER_ENABLED] = enabled }

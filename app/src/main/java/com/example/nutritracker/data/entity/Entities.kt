@@ -3,6 +3,7 @@ package com.example.nutritracker.data.entity
 import androidx.room.*
 import java.time.LocalDate
 import java.time.LocalDateTime
+import java.time.LocalTime
 
 // ── Enums ────────────────────────────────────────────────────────────────────
 
@@ -16,11 +17,28 @@ enum class ActivityLevel(val palValue: Double) {
 
 enum class WeightGoal { LOSE, MAINTAIN, GAIN }
 
-enum class IntakeType { BREAKFAST, LUNCH, DINNER, SNACK }
+enum class IntakeType {
+    BREAKFAST, LUNCH, DINNER, SNACK;
+
+    companion object {
+        fun suggestForTime(time: LocalTime = LocalTime.now()): IntakeType {
+            val mins = time.hour * 60 + time.minute
+            return when {
+                mins in 300 until 630 -> BREAKFAST   // 05:00 - 10:29
+                mins in 630 until 870 -> LUNCH       // 10:30 - 14:29
+                mins in 870 until 1020 -> SNACK      // 14:30 - 16:59
+                mins in 1020 until 1290 -> DINNER    // 17:00 - 21:29
+                else -> SNACK
+            }
+        }
+    }
+}
 
 enum class MealSource { CUSTOM, AI_ANALYSIS, MANUAL, RECIPE }
 
 enum class ThemeMode { SYSTEM, LIGHT, DARK }
+
+enum class AppLanguage { SYSTEM, ZH, EN }
 
 // ── User ─────────────────────────────────────────────────────────────────────
 

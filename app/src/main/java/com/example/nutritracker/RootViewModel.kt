@@ -2,6 +2,7 @@ package com.example.nutritracker
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.nutritracker.data.entity.AppLanguage
 import com.example.nutritracker.data.entity.ThemeMode
 import com.example.nutritracker.data.repository.SettingsRepository
 import com.example.nutritracker.util.DayBoundaryCalc
@@ -27,6 +28,9 @@ class RootViewModel @Inject constructor(
 
     val themeMode: StateFlow<ThemeMode> = settingsRepo.themeMode
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), ThemeMode.SYSTEM)
+
+    val appLanguage: StateFlow<AppLanguage> = settingsRepo.appLanguage
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), AppLanguage.SYSTEM)
 
     val dynamicColorEnabled: StateFlow<Boolean> = settingsRepo.dynamicColorEnabled
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
