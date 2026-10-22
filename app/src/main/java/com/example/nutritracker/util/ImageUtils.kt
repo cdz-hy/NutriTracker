@@ -106,7 +106,7 @@ object ImageUtils {
 
     fun uriToCompressedBase64(context: Context, uri: Uri, maxDim: Int = 1024, quality: Int = 85): String {
         val bitmap = loadBitmapSafe(context, uri, maxDim, maxDim)
-            ?: throw IllegalStateException("无法读取或解码图片")
+            ?: throw IllegalStateException(LocaleHelper.tr(context, "无法读取或解码图片", "Unable to read or decode image"))
         return try {
             ByteArrayOutputStream().use { baos ->
                 bitmap.compress(Bitmap.CompressFormat.JPEG, quality, baos)
@@ -157,6 +157,21 @@ object ImageUtils {
                 } catch (_: Exception) {
                 }
             }
+        }
+    }
+
+    /**
+     * Safely deletes a persisted meal thumbnail file inside filesDir/meal_thumbnails.
+     */
+    fun deleteThumbnail(context: Context, path: String?) {
+        if (path.isNullOrBlank()) return
+        try {
+            val thumbDir = File(context.filesDir, "meal_thumbnails").canonicalFile
+            val file = File(path).canonicalFile
+            if (file.parentFile == thumbDir && file.exists()) {
+                file.delete()
+            }
+        } catch (_: Exception) {
         }
     }
 }

@@ -6,6 +6,7 @@ import com.example.nutritracker.data.DataExportManager
 import com.example.nutritracker.data.dao.*
 import com.example.nutritracker.data.repository.*
 import com.example.nutritracker.util.DayBoundaryCalc
+import com.google.gson.Gson
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -31,6 +32,17 @@ object RepositoryModule {
 
     @Provides @Singleton
     fun provideRecipeRepository(dao: RecipeDao, txRunner: DatabaseTransactionRunner) = RecipeRepository(dao, txRunner)
+
+    @Provides @Singleton
+    fun provideRecipeIntakeManager(
+        @ApplicationContext context: Context,
+        mealRepo: MealRepository,
+        intakeRepo: IntakeRepository,
+        trackedDayRepo: TrackedDayRepository,
+        settingsRepo: SettingsRepository,
+        dayBoundaryCalc: DayBoundaryCalc,
+        gson: Gson
+    ) = RecipeIntakeManager(context, mealRepo, intakeRepo, trackedDayRepo, settingsRepo, dayBoundaryCalc, gson)
 
     @Provides @Singleton
     fun provideTrackedDayRepository(dao: TrackedDayDao) = TrackedDayRepository(dao)

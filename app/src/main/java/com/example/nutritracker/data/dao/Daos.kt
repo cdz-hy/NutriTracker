@@ -60,7 +60,7 @@ interface MealDao {
     @Query("SELECT * FROM meals ORDER BY id DESC")
     suspend fun getAll(): List<Meal>
 
-    @Query("SELECT * FROM meals WHERE isArchived = 0 ORDER BY isFavorite DESC, id DESC")
+    @Query("SELECT * FROM meals WHERE isArchived = 0 AND source != 'RECIPE' ORDER BY isFavorite DESC, id DESC")
     fun getLibraryFlow(): Flow<List<Meal>>
 
     @Query("SELECT * FROM meals WHERE isArchived = 0 AND name LIKE '%' || :query || '%' ORDER BY isFavorite DESC, id DESC")

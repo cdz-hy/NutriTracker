@@ -7,10 +7,10 @@ import androidx.lifecycle.viewModelScope
 import com.example.nutritracker.data.dao.RecipeWithIngredients
 import com.example.nutritracker.data.entity.*
 import com.example.nutritracker.data.repository.*
-import com.example.nutritracker.feature.camera.NutritionResult
 import com.example.nutritracker.util.DayBoundaryCalc
+import com.example.nutritracker.util.ImageUtils
+import com.example.nutritracker.util.LocaleHelper
 import com.example.nutritracker.widget.NutriTrackerWidgetUpdater
-import com.google.gson.Gson
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.*
@@ -19,11 +19,13 @@ import java.time.LocalDate
 import java.time.LocalDateTime
 import javax.inject.Inject
 
-enum class LibraryFilter(val label: String) {
-    ALL("全部"),
-    FAVORITE("收藏"),
-    AI("AI 识别"),
-    MANUAL("手动/自制")
+enum class LibraryFilter(val label: String, val labelEn: String) {
+    ALL("全部", "All"),
+    FAVORITE("收藏", "Favorites"),
+    AI("AI 识别", "AI"),
+    MANUAL("手动/自制", "Manual");
+
+    fun displayLabel(isZh: Boolean): String = if (isZh) label else labelEn
 }
 
 @HiltViewModel
@@ -33,10 +35,10 @@ class FoodLibraryViewModel @Inject constructor(
     private val mealRepo: MealRepository,
     private val intakeRepo: IntakeRepository,
     private val recipeRepo: RecipeRepository,
+    private val recipeIntakeManager: RecipeIntakeManager,
     private val trackedDayRepo: TrackedDayRepository,
     private val settingsRepo: SettingsRepository,
-    private val dayBoundaryCalc: DayBoundaryCalc,
-    private val gson: Gson
+    private val dayBoundaryCalc: DayBoundaryCalc
 ) : ViewModel() {
 
     private val initialTypeId: Int = savedStateHandle["intakeTypeId"] ?: 0
@@ -98,10 +100,21 @@ class FoodLibraryViewModel @Inject constructor(
 
     fun deleteOrArchiveMeal(meal: Meal) {
         viewModelScope.launch {
-            val physicallyDeleted = mealRepo.deleteOrArchive(meal.id)
+            val result = mealRepo.deleteOrArchive(meal.id)
+            if (result.physicallyDeleted) {
+                ImageUtils.deleteThumbnail(appContext, result.deletedImagePath)
+            }
+            val isZh = LocaleHelper.isChinese(appContext)
             _toastEvent.emit(
-                if (physicallyDeleted) "已彻底删除 \"${meal.name}\""
-                else "该食物有历史记录引用，已从食物库隐藏"
+                if (result.physicallyDeleted) {
+                    LocaleHelper.tr(isZh, "已彻底删除 \"${meal.name}\"", "Deleted \"${meal.name}\"")
+                } else {
+                    LocaleHelper.tr(
+                        isZh,
+                        "该食物有历史记录引用，已从食物库隐藏",
+                        "Used in past entries — archived from library"
+                    )
+                }
             )
         }
     }
@@ -115,7 +128,9 @@ class FoodLibraryViewModel @Inject constructor(
             intakeRepo.upsert(Intake(mealId = meal.id, intakeType = type, amount = grams, dateTime = dt))
             trackedDayRepo.saveGoalSnapshot(targetDate, 0.0, 0.0, 0.0, 0.0)
             NutriTrackerWidgetUpdater.enqueueUpdate(appContext)
-            _toastEvent.emit("已记录 ${meal.name}")
+            _toastEvent.emit(
+                LocaleHelper.tr(LocaleHelper.isChinese(appContext), "已记录 ${meal.name}", "Logged ${meal.name}")
+            )
         }
     }
 
@@ -137,70 +152,32 @@ class FoodLibraryViewModel @Inject constructor(
                 ),
                 ingredients
             )
-            _toastEvent.emit("食谱已保存")
+            _toastEvent.emit(
+                LocaleHelper.tr(LocaleHelper.isChinese(appContext), "食谱已保存", "Recipe saved")
+            )
         }
     }
 
     fun deleteRecipe(recipeId: Long) {
         viewModelScope.launch {
             recipeRepo.deleteRecipe(recipeId)
-            _toastEvent.emit("食谱已删除")
+            _toastEvent.emit(
+                LocaleHelper.tr(LocaleHelper.isChinese(appContext), "食谱已删除", "Recipe deleted")
+            )
         }
     }
 
     fun logRecipe(recipeWithIngredients: RecipeWithIngredients, servings: Double, type: IntakeType) {
-        if (servings <= 0.0 || recipeWithIngredients.ingredients.isEmpty()) return
         viewModelScope.launch {
-            val recipe = recipeWithIngredients.recipe
-            val scale = servings / recipe.defaultServings.coerceAtLeast(0.1)
-            val subItems = recipeWithIngredients.ingredients.map { ing ->
-                val g = ing.ingredient.amountGrams * scale
-                val factor = g / 100.0
-                NutritionResult.FoodItem(
-                    name = ing.meal.name,
-                    weightG = g,
-                    calories = ing.meal.energyKcal100 * factor,
-                    protein = ing.meal.proteins100 * factor,
-                    fat = ing.meal.fat100 * factor,
-                    carbs = ing.meal.carbohydrates100 * factor,
-                    fiberG = ing.meal.fiber100?.times(factor),
-                    sugarsG = ing.meal.sugars100?.times(factor),
-                    saturatedFatG = ing.meal.saturatedFat100?.times(factor),
-                    sodiumMg = ing.meal.sodium100?.times(factor),
-                    cholesterolMg = ing.meal.cholesterol100?.times(factor)
+            if (recipeIntakeManager.logRecipe(recipeWithIngredients, servings, type, targetDate)) {
+                _toastEvent.emit(
+                    LocaleHelper.tr(
+                        LocaleHelper.isChinese(appContext),
+                        "已记入食谱 ${recipeWithIngredients.recipe.name}",
+                        "Logged recipe ${recipeWithIngredients.recipe.name}"
+                    )
                 )
             }
-            val totalWeight = subItems.sumOf { it.weightG }.coerceAtLeast(1.0)
-            val to100 = 100.0 / totalWeight
-            fun sumOpt(pick: (NutritionResult.FoodItem) -> Double?): Double? {
-                val vals = subItems.mapNotNull(pick)
-                return if (vals.isNotEmpty()) vals.sum() * to100 else null
-            }
-            val mealId = mealRepo.upsert(
-                Meal(
-                    name = if (servings == 1.0) recipe.name else "${recipe.name} (${servings}份)",
-                    source = MealSource.RECIPE,
-                    energyKcal100 = subItems.sumOf { it.calories } * to100,
-                    carbohydrates100 = subItems.sumOf { it.carbs } * to100,
-                    fat100 = subItems.sumOf { it.fat } * to100,
-                    proteins100 = subItems.sumOf { it.protein } * to100,
-                    fiber100 = sumOpt { it.fiberG },
-                    sugars100 = sumOpt { it.sugarsG },
-                    saturatedFat100 = sumOpt { it.saturatedFatG },
-                    sodium100 = sumOpt { it.sodiumMg },
-                    cholesterol100 = sumOpt { it.cholesterolMg },
-                    portionLabel = "份",
-                    portionGrams = totalWeight / servings,
-                    foodItemsJson = gson.toJson(subItems)
-                )
-            )
-            val offset = settingsRepo.dayBoundaryMinutes.first()
-            val logicalToday = dayBoundaryCalc.currentLogicalDay(offset)
-            val dt = if (targetDate == logicalToday) LocalDateTime.now() else targetDate.atTime(12, 0)
-            intakeRepo.upsert(Intake(mealId = mealId, intakeType = type, amount = totalWeight, dateTime = dt))
-            trackedDayRepo.saveGoalSnapshot(targetDate, 0.0, 0.0, 0.0, 0.0)
-            NutriTrackerWidgetUpdater.enqueueUpdate(appContext)
-            _toastEvent.emit("已记入食谱 ${recipe.name}")
         }
     }
 }

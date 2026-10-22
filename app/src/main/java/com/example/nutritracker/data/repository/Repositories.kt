@@ -1,11 +1,17 @@
 package com.example.nutritracker.data.repository
 
+import android.content.Context
 import androidx.room.withTransaction
 import com.example.nutritracker.data.AppDatabase
 import com.example.nutritracker.data.dao.*
 import com.example.nutritracker.data.entity.*
+import com.example.nutritracker.feature.camera.NutritionResult
 import com.example.nutritracker.util.DayBoundaryCalc
+import com.example.nutritracker.util.LocaleHelper
+import com.example.nutritracker.widget.NutriTrackerWidgetUpdater
+import com.google.gson.Gson
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import java.time.LocalDate
 import java.time.LocalDateTime
 
@@ -26,6 +32,11 @@ class UserRepository(private val dao: UserDao) {
     suspend fun hasUser(): Boolean = dao.getUser() != null
 }
 
+data class DeleteMealResult(
+    val physicallyDeleted: Boolean,
+    val deletedImagePath: String? = null
+)
+
 // ── Meal ─────────────────────────────────────────────────────────────────────
 
 class MealRepository(
@@ -42,14 +53,15 @@ class MealRepository(
     suspend fun setArchived(id: Long, archived: Boolean) = dao.setArchived(id, archived)
     suspend fun delete(meal: Meal) = dao.delete(meal)
 
-    suspend fun deleteOrArchive(mealId: Long): Boolean {
+    suspend fun deleteOrArchive(mealId: Long): DeleteMealResult {
+        val existing = dao.getById(mealId)
         val refCount = intakeDao.countByMealId(mealId)
         return if (refCount == 0) {
             dao.deleteById(mealId)
-            true
+            DeleteMealResult(physicallyDeleted = true, deletedImagePath = existing?.localImagePath)
         } else {
             dao.setArchived(mealId, true)
-            false
+            DeleteMealResult(physicallyDeleted = false, deletedImagePath = null)
         }
     }
 }
@@ -155,6 +167,88 @@ class RecipeRepository(
             }
             recipeId
         }
+}
+
+/**
+ * Shared recipe-to-intake snapshot logger used by AddMealViewModel and FoodLibraryViewModel.
+ */
+class RecipeIntakeManager(
+    private val appContext: Context,
+    private val mealRepo: MealRepository,
+    private val intakeRepo: IntakeRepository,
+    private val trackedDayRepo: TrackedDayRepository,
+    private val settingsRepo: SettingsRepository,
+    private val dayBoundaryCalc: DayBoundaryCalc,
+    private val gson: Gson
+) {
+    suspend fun logRecipe(
+        recipeWithIngredients: RecipeWithIngredients,
+        servings: Double,
+        intakeType: IntakeType,
+        date: LocalDate
+    ): Boolean {
+        if (servings <= 0.0 || recipeWithIngredients.ingredients.isEmpty()) return false
+        val recipe = recipeWithIngredients.recipe
+        val scale = servings / recipe.defaultServings.coerceAtLeast(0.1)
+        val subItems = recipeWithIngredients.ingredients.map { ing ->
+            val g = ing.ingredient.amountGrams * scale
+            val factor = g / 100.0
+            NutritionResult.FoodItem(
+                name = ing.meal.name,
+                weightG = g,
+                calories = ing.meal.energyKcal100 * factor,
+                protein = ing.meal.proteins100 * factor,
+                fat = ing.meal.fat100 * factor,
+                carbs = ing.meal.carbohydrates100 * factor,
+                fiberG = ing.meal.fiber100?.times(factor),
+                sugarsG = ing.meal.sugars100?.times(factor),
+                saturatedFatG = ing.meal.saturatedFat100?.times(factor),
+                sodiumMg = ing.meal.sodium100?.times(factor),
+                cholesterolMg = ing.meal.cholesterol100?.times(factor)
+            )
+        }
+        val totalWeight = subItems.sumOf { it.weightG }.coerceAtLeast(1.0)
+        val to100 = 100.0 / totalWeight
+        fun sumOpt(pick: (NutritionResult.FoodItem) -> Double?): Double? {
+            val vals = subItems.mapNotNull(pick)
+            return if (vals.isNotEmpty()) vals.sum() * to100 else null
+        }
+        val isZh = LocaleHelper.isChinese(appContext)
+        val portionUnit = LocaleHelper.tr(isZh, "份", "serving")
+        val mealId = mealRepo.upsert(
+            Meal(
+                name = if (servings == 1.0) recipe.name else if (isZh) "${recipe.name} (${servings}份)" else "${recipe.name} (${servings}x)",
+                source = MealSource.RECIPE,
+                energyKcal100 = subItems.sumOf { it.calories } * to100,
+                carbohydrates100 = subItems.sumOf { it.carbs } * to100,
+                fat100 = subItems.sumOf { it.fat } * to100,
+                proteins100 = subItems.sumOf { it.protein } * to100,
+                fiber100 = sumOpt { it.fiberG },
+                sugars100 = sumOpt { it.sugarsG },
+                saturatedFat100 = sumOpt { it.saturatedFatG },
+                sodium100 = sumOpt { it.sodiumMg },
+                cholesterol100 = sumOpt { it.cholesterolMg },
+                portionLabel = portionUnit,
+                portionGrams = totalWeight / servings,
+                isArchived = true,
+                foodItemsJson = gson.toJson(subItems)
+            )
+        )
+        val offset = settingsRepo.dayBoundaryMinutes.first()
+        val logicalToday = dayBoundaryCalc.currentLogicalDay(offset)
+        val dateTime = if (date == logicalToday) LocalDateTime.now() else date.atTime(12, 0)
+        intakeRepo.upsert(
+            Intake(
+                mealId = mealId,
+                intakeType = intakeType,
+                amount = totalWeight,
+                dateTime = dateTime
+            )
+        )
+        trackedDayRepo.saveGoalSnapshot(date, 0.0, 0.0, 0.0, 0.0)
+        NutriTrackerWidgetUpdater.enqueueUpdate(appContext)
+        return true
+    }
 }
 
 // ── TrackedDay ───────────────────────────────────────────────────────────────

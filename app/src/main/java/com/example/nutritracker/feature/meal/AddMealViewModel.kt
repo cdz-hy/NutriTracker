@@ -13,8 +13,8 @@ import com.example.nutritracker.feature.camera.AiAnalysisManager
 import com.example.nutritracker.feature.camera.AnalysisTask
 import com.example.nutritracker.feature.camera.NutritionResult
 import com.example.nutritracker.util.DayBoundaryCalc
+import com.example.nutritracker.util.LocaleHelper
 import com.example.nutritracker.widget.NutriTrackerWidgetUpdater
-import com.google.gson.Gson
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -24,10 +24,12 @@ import java.time.LocalDate
 import java.time.LocalDateTime
 import javax.inject.Inject
 
-enum class ManualEntryMode(val label: String) {
-    PER_100G("每100g"),
-    WHOLE_PORTION("按整份"),
-    QUICK_ADD("极速快记")
+enum class ManualEntryMode(val label: String, val labelEn: String) {
+    PER_100G("每100g", "Per 100g"),
+    WHOLE_PORTION("按整份", "Per Serving"),
+    QUICK_ADD("极速快记", "Quick Add");
+
+    fun displayLabel(isZh: Boolean): String = if (isZh) label else labelEn
 }
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -38,11 +40,11 @@ class AddMealViewModel @Inject constructor(
     private val mealRepo: MealRepository,
     private val intakeRepo: IntakeRepository,
     private val recipeRepo: RecipeRepository,
+    private val recipeIntakeManager: RecipeIntakeManager,
     private val trackedDayRepo: TrackedDayRepository,
     private val settingsRepo: SettingsRepository,
     private val dayBoundaryCalc: DayBoundaryCalc,
-    private val aiAnalysisManager: AiAnalysisManager,
-    private val gson: Gson
+    private val aiAnalysisManager: AiAnalysisManager
 ) : ViewModel() {
 
     data class RecentIntake(val meal: Meal, val amount: Double, val kcal: Double)
@@ -181,61 +183,8 @@ class AddMealViewModel @Inject constructor(
     }
 
     fun logRecipe(recipeWithIngredients: RecipeWithIngredients, servings: Double, intakeType: IntakeType, date: LocalDate) {
-        if (servings <= 0.0 || recipeWithIngredients.ingredients.isEmpty()) return
         viewModelScope.launch {
-            val recipe = recipeWithIngredients.recipe
-            val scale = servings / recipe.defaultServings.coerceAtLeast(0.1)
-            val subItems = recipeWithIngredients.ingredients.map { ing ->
-                val g = ing.ingredient.amountGrams * scale
-                val factor = g / 100.0
-                NutritionResult.FoodItem(
-                    name = ing.meal.name,
-                    weightG = g,
-                    calories = ing.meal.energyKcal100 * factor,
-                    protein = ing.meal.proteins100 * factor,
-                    fat = ing.meal.fat100 * factor,
-                    carbs = ing.meal.carbohydrates100 * factor,
-                    fiberG = ing.meal.fiber100?.times(factor),
-                    sugarsG = ing.meal.sugars100?.times(factor),
-                    saturatedFatG = ing.meal.saturatedFat100?.times(factor),
-                    sodiumMg = ing.meal.sodium100?.times(factor),
-                    cholesterolMg = ing.meal.cholesterol100?.times(factor)
-                )
-            }
-            val totalWeight = subItems.sumOf { it.weightG }.coerceAtLeast(1.0)
-            val to100 = 100.0 / totalWeight
-            fun sumOpt(pick: (NutritionResult.FoodItem) -> Double?): Double? {
-                val vals = subItems.mapNotNull(pick)
-                return if (vals.isNotEmpty()) vals.sum() * to100 else null
-            }
-            val mealId = mealRepo.upsert(
-                Meal(
-                    name = if (servings == 1.0) recipe.name else "${recipe.name} (${servings}份)",
-                    source = MealSource.RECIPE,
-                    energyKcal100 = subItems.sumOf { it.calories } * to100,
-                    carbohydrates100 = subItems.sumOf { it.carbs } * to100,
-                    fat100 = subItems.sumOf { it.fat } * to100,
-                    proteins100 = subItems.sumOf { it.protein } * to100,
-                    fiber100 = sumOpt { it.fiberG },
-                    sugars100 = sumOpt { it.sugarsG },
-                    saturatedFat100 = sumOpt { it.saturatedFatG },
-                    sodium100 = sumOpt { it.sodiumMg },
-                    cholesterol100 = sumOpt { it.cholesterolMg },
-                    portionLabel = "份",
-                    portionGrams = totalWeight / servings,
-                    foodItemsJson = gson.toJson(subItems)
-                )
-            )
-            intakeRepo.upsert(
-                Intake(
-                    mealId = mealId,
-                    intakeType = intakeType,
-                    amount = totalWeight,
-                    dateTime = resolveDateTime(date)
-                )
-            )
-            trackedDayRepo.saveGoalSnapshot(date, 0.0, 0.0, 0.0, 0.0)
-            NutriTrackerWidgetUpdater.enqueueUpdate(appContext)
+            recipeIntakeManager.logRecipe(recipeWithIngredients, servings, intakeType, date)
         }
     }
 
@@ -281,7 +230,10 @@ class AddMealViewModel @Inject constructor(
                     saturatedFat100 = satFatInput?.times(scaleTo100)?.coerceAtLeast(0.0),
                     sodium100 = sodiumInput?.times(scaleTo100)?.coerceAtLeast(0.0),
                     cholesterol100 = cholesterolInput?.times(scaleTo100)?.coerceAtLeast(0.0),
-                    portionLabel = if (mode == ManualEntryMode.WHOLE_PORTION) portionLabel?.takeIf { it.isNotBlank() } ?: "份" else null,
+                    portionLabel = if (mode == ManualEntryMode.WHOLE_PORTION) {
+                        portionLabel?.takeIf { it.isNotBlank() }
+                            ?: LocaleHelper.tr(LocaleHelper.isChinese(appContext), "份", "serving")
+                    } else null,
                     portionGrams = if (mode == ManualEntryMode.WHOLE_PORTION) safeWeight else null
                 )
             )
