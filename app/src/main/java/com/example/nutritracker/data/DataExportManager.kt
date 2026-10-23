@@ -4,6 +4,7 @@ import android.content.Context
 import android.net.Uri
 import com.example.nutritracker.data.entity.*
 import com.example.nutritracker.data.repository.*
+import com.example.nutritracker.util.LocaleHelper
 import com.google.gson.Gson
 import com.google.gson.GsonBuilder
 import com.google.gson.TypeAdapter
@@ -53,7 +54,8 @@ data class ExportBundle(
         @SerializedName("themeMode") val themeMode: String? = null,
         @SerializedName("dynamicColorEnabled") val dynamicColorEnabled: Boolean? = null,
         @SerializedName("useKj") val useKj: Boolean? = null,
-        @SerializedName("aiAutoConfirm") val aiAutoConfirm: Boolean? = null
+        @SerializedName("aiAutoConfirm") val aiAutoConfirm: Boolean? = null,
+        @SerializedName("appLanguage") val appLanguage: String? = null
     )
 
     data class ExportMeal(
@@ -196,10 +198,15 @@ class DataExportManager @Inject constructor(
 
     suspend fun exportData(uri: Uri): Result<Unit> = withContext(Dispatchers.IO) {
         try {
-            val ctx = context ?: return@withContext Result.failure(IllegalStateException("Context 不可用"))
+            val isZh = context?.let { LocaleHelper.isChinese(it) } ?: LocaleHelper.isCurrentLocaleChinese()
+            val ctx = context ?: return@withContext Result.failure(
+                IllegalStateException(LocaleHelper.tr(isZh, "Context 不可用", "Context unavailable"))
+            )
             val thumbnailDir = File(ctx.filesDir, "meal_thumbnails")
             val stream = ctx.contentResolver.openOutputStream(uri)
-                ?: return@withContext Result.failure(IOException("无法打开导出文件输出流"))
+                ?: return@withContext Result.failure(
+                    IOException(LocaleHelper.tr(isZh, "无法打开导出文件输出流", "Unable to open export output stream"))
+                )
             stream.use { outputStream ->
                 exportToStream(outputStream, thumbnailDir)
             }
@@ -233,7 +240,8 @@ class DataExportManager @Inject constructor(
                 themeMode = s.themeMode.first().name,
                 dynamicColorEnabled = s.dynamicColorEnabled.first(),
                 useKj = s.useKj.first(),
-                aiAutoConfirm = s.aiAutoConfirm.first()
+                aiAutoConfirm = s.aiAutoConfirm.first(),
+                appLanguage = s.appLanguage.first().name
             )
         }
 
@@ -364,10 +372,15 @@ class DataExportManager @Inject constructor(
 
     suspend fun importData(uri: Uri): Result<ImportResult> = withContext(Dispatchers.IO) {
         try {
-            val ctx = context ?: return@withContext Result.failure(IllegalStateException("Context 不可用"))
+            val isZh = context?.let { LocaleHelper.isChinese(it) } ?: LocaleHelper.isCurrentLocaleChinese()
+            val ctx = context ?: return@withContext Result.failure(
+                IllegalStateException(LocaleHelper.tr(isZh, "Context 不可用", "Context unavailable"))
+            )
             val imagesDir = File(ctx.filesDir, "meal_thumbnails")
             val stream = ctx.contentResolver.openInputStream(uri)
-                ?: return@withContext Result.failure(IOException("无法打开导入文件"))
+                ?: return@withContext Result.failure(
+                    IOException(LocaleHelper.tr(isZh, "无法打开导入文件", "Unable to open import file"))
+                )
             val result = stream.use { inputStream ->
                 importFromStream(inputStream, imagesDir)
             }
@@ -378,6 +391,7 @@ class DataExportManager @Inject constructor(
     }
 
     suspend fun importFromStream(inputStream: InputStream, imagesDir: File): ImportResult {
+        val isZh = context?.let { LocaleHelper.isChinese(it) } ?: LocaleHelper.isCurrentLocaleChinese()
         val entries = mutableMapOf<String, ByteArray>()
         ZipInputStream(inputStream).use { zip ->
             var entry = zip.nextEntry
@@ -390,10 +404,10 @@ class DataExportManager @Inject constructor(
         }
 
         val dataJson = entries["data.json"]?.toString(Charsets.UTF_8)
-            ?: throw IOException("ZIP 中未找到 data.json")
+            ?: throw IOException(LocaleHelper.tr(isZh, "ZIP 中未找到 data.json", "data.json not found in ZIP"))
 
         val bundle = gson.fromJson(dataJson, ExportBundle::class.java)
-            ?: throw IOException("data.json 解析为空")
+            ?: throw IOException(LocaleHelper.tr(isZh, "data.json 解析为空", "data.json parsed as empty"))
 
         if (!imagesDir.exists()) imagesDir.mkdirs()
         val canonicalImagesRoot = imagesDir.canonicalFile
@@ -608,6 +622,9 @@ class DataExportManager @Inject constructor(
                 s.dynamicColorEnabled?.let { settingsRepo.setDynamicColorEnabled(it) }
                 s.useKj?.let { settingsRepo.setUseKj(it) }
                 s.aiAutoConfirm?.let { settingsRepo.setAiAutoConfirm(it) }
+                s.appLanguage?.let { lang ->
+                    runCatching { AppLanguage.valueOf(lang) }.getOrNull()?.let { settingsRepo.setAppLanguage(it) }
+                }
             }
 
             ImportResult(

@@ -17,6 +17,7 @@ import com.example.nutritracker.R
 import com.example.nutritracker.data.entity.IntakeType
 import com.example.nutritracker.data.repository.*
 import com.example.nutritracker.util.DayBoundaryCalc
+import com.example.nutritracker.util.LocaleHelper
 import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
 import dagger.hilt.android.EntryPointAccessors
@@ -41,15 +42,23 @@ object ReminderChannels {
 
     fun ensureChannel(context: Context) {
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        if (manager.getNotificationChannel(CHANNEL_ID) == null) {
+        val isZh = LocaleHelper.isChinese(context)
+        val channelName = LocaleHelper.tr(isZh, "饮食与饮水提醒", "Meal & Water Reminders")
+        val channelDesc = LocaleHelper.tr(isZh, "三餐漏记提醒与定时饮水提醒", "Reminders for missed meals and periodic hydration")
+        val existing = manager.getNotificationChannel(CHANNEL_ID)
+        if (existing == null) {
             val channel = NotificationChannel(
                 CHANNEL_ID,
-                "饮食与饮水提醒",
+                channelName,
                 NotificationManager.IMPORTANCE_DEFAULT
             ).apply {
-                description = "三餐漏记提醒与定时饮水提醒"
+                description = channelDesc
             }
             manager.createNotificationChannel(channel)
+        } else if (existing.name != channelName) {
+            existing.name = channelName
+            existing.description = channelDesc
+            manager.createNotificationChannel(existing)
         }
     }
 }
@@ -73,11 +82,28 @@ class MealReminderWorker(
         val existing = ep.intakeRepository().getByTypeAndLogicalDay(intakeType, today, offset)
 
         if (existing.isEmpty()) {
+            val isZh = LocaleHelper.isChinese(applicationContext)
             val (title, text, notifId) = when (intakeType) {
-                IntakeType.BREAKFAST -> Triple("早餐记录提醒", "还没记录今天的早餐，拍张照快速分析吧！", 1001)
-                IntakeType.LUNCH -> Triple("午餐记录提醒", "午餐时间到了，别忘了记录今天的营养摄入", 1002)
-                IntakeType.DINNER -> Triple("晚餐记录提醒", "晚餐记得按时记录，保持每日热量追踪", 1003)
-                IntakeType.SNACK -> Triple("零食记录提醒", "记得记录加餐小食哦", 1004)
+                IntakeType.BREAKFAST -> Triple(
+                    LocaleHelper.tr(isZh, "早餐记录提醒", "Breakfast Reminder"),
+                    LocaleHelper.tr(isZh, "还没记录今天的早餐，拍张照快速分析吧！", "Haven't logged breakfast yet — snap a photo to track it quickly!"),
+                    1001
+                )
+                IntakeType.LUNCH -> Triple(
+                    LocaleHelper.tr(isZh, "午餐记录提醒", "Lunch Reminder"),
+                    LocaleHelper.tr(isZh, "午餐时间到了，别忘了记录今天的营养摄入", "Lunchtime! Don't forget to log today's meal."),
+                    1002
+                )
+                IntakeType.DINNER -> Triple(
+                    LocaleHelper.tr(isZh, "晚餐记录提醒", "Dinner Reminder"),
+                    LocaleHelper.tr(isZh, "晚餐记得按时记录，保持每日热量追踪", "Remember to log dinner to stay on track today."),
+                    1003
+                )
+                IntakeType.SNACK -> Triple(
+                    LocaleHelper.tr(isZh, "零食记录提醒", "Snack Reminder"),
+                    LocaleHelper.tr(isZh, "记得记录加餐小食哦", "Remember to log your snacks."),
+                    1004
+                )
             }
             showReminderNotification(applicationContext, notifId, title, text)
         }
@@ -121,11 +147,16 @@ class WaterReminderWorker(
 
         if (totalMl < goalMl) {
             val remain = goalMl - totalMl
+            val isZh = LocaleHelper.isChinese(applicationContext)
             showReminderNotification(
                 applicationContext,
                 2001,
-                "该喝水啦",
-                "今日已饮水 ${totalMl}ml，距离目标还差 ${remain}ml"
+                LocaleHelper.tr(isZh, "该喝水啦", "Time to Hydrate"),
+                LocaleHelper.tr(
+                    isZh,
+                    "今日已饮水 ${totalMl}ml，距离目标还差 ${remain}ml",
+                    "Logged ${totalMl}ml today — ${remain}ml left to reach your goal"
+                )
             )
         }
 
