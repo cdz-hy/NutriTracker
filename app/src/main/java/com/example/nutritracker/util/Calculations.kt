@@ -12,9 +12,11 @@ import kotlin.math.roundToInt
 // 来源: WHO Europe - https://www.who.int/europe/news-room/fact-sheets/item/a-healthy-lifestyle---who-recommendations
 // ══════════════════════════════════════════════════════════════════════════════
 
-enum class BmiStandard(val label: String) {
-    WHO("世界标准 (WHO)"),
-    CHINA("中国标准 (WGOC)")
+enum class BmiStandard(val label: String, val labelEn: String) {
+    WHO("世界标准 (WHO)", "WHO Standard"),
+    CHINA("中国标准 (WGOC)", "China Standard (WGOC)");
+
+    fun displayLabel(isZh: Boolean): String = if (isZh) label else labelEn
 }
 
 object BmiCalc {
@@ -49,23 +51,24 @@ object BmiCalc {
         UNDERWEIGHT, NORMAL, PRE_OBESITY, OBESITY_I, OBESITY_II, OBESITY_III;
 
         fun getLabel(
-            standard: BmiStandard = if (Locale.getDefault().language == "zh") BmiStandard.CHINA else BmiStandard.WHO
+            standard: BmiStandard = if (Locale.getDefault().language == "zh") BmiStandard.CHINA else BmiStandard.WHO,
+            isZh: Boolean = Locale.getDefault().language == "zh"
         ): String = when (standard) {
             BmiStandard.CHINA -> when (this) {
-                UNDERWEIGHT -> "体重过低"
-                NORMAL -> "正常"
-                PRE_OBESITY -> "超重"
-                OBESITY_I -> "肥胖 I 级"
-                OBESITY_II -> "肥胖 II 级"
-                OBESITY_III -> "肥胖 III 级"
+                UNDERWEIGHT -> if (isZh) "体重过低" else "Underweight"
+                NORMAL -> if (isZh) "正常" else "Normal"
+                PRE_OBESITY -> if (isZh) "超重" else "Overweight"
+                OBESITY_I -> if (isZh) "肥胖 I 级" else "Obesity I"
+                OBESITY_II -> if (isZh) "肥胖 II 级" else "Obesity II"
+                OBESITY_III -> if (isZh) "肥胖 III 级" else "Obesity III"
             }
             BmiStandard.WHO -> when (this) {
-                UNDERWEIGHT -> "体重过低"
-                NORMAL -> "正常体重"
-                PRE_OBESITY -> "超重前期"
-                OBESITY_I -> "肥胖 I 级"
-                OBESITY_II -> "肥胖 II 级"
-                OBESITY_III -> "肥胖 III 级"
+                UNDERWEIGHT -> if (isZh) "体重过低" else "Underweight"
+                NORMAL -> if (isZh) "正常体重" else "Normal Weight"
+                PRE_OBESITY -> if (isZh) "超重前期" else "Pre-obesity"
+                OBESITY_I -> if (isZh) "肥胖 I 级" else "Obesity Class I"
+                OBESITY_II -> if (isZh) "肥胖 II 级" else "Obesity Class II"
+                OBESITY_III -> if (isZh) "肥胖 III 级" else "Obesity Class III"
             }
         }
 

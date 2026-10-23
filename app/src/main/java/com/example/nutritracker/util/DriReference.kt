@@ -7,15 +7,18 @@ import java.time.LocalDate
 
 enum class MicronutrientKey(
     val label: String,
+    val labelEn: String,
     val unit: String,
     val excessMatters: Boolean,
     val basis: String
 ) {
-    FIBER("膳食纤维", "g", excessMatters = false, basis = "AI"),
-    SUGARS("糖", "g", excessMatters = true, basis = "DV"),
-    SATURATED_FAT("饱和脂肪", "g", excessMatters = true, basis = "DV"),
-    SODIUM("钠", "mg", excessMatters = true, basis = "CDRR"),
-    CHOLESTEROL("胆固醇", "mg", excessMatters = true, basis = "DV")
+    FIBER("膳食纤维", "Fiber", "g", excessMatters = false, basis = "AI"),
+    SUGARS("糖", "Sugars", "g", excessMatters = true, basis = "DV"),
+    SATURATED_FAT("饱和脂肪", "Sat. Fat", "g", excessMatters = true, basis = "DV"),
+    SODIUM("钠", "Sodium", "mg", excessMatters = true, basis = "CDRR"),
+    CHOLESTEROL("胆固醇", "Cholesterol", "mg", excessMatters = true, basis = "DV");
+
+    fun displayLabel(isZh: Boolean): String = if (isZh) label else labelEn
 }
 
 data class MicronutrientTotals(
