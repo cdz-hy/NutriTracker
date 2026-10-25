@@ -33,6 +33,9 @@ import com.example.nutritracker.ui.theme.Dimens
 import com.example.nutritracker.ui.theme.LocalUseDarkTheme
 import com.example.nutritracker.ui.theme.WaterColor
 import com.example.nutritracker.ui.theme.WaterColorDark
+import com.example.nutritracker.util.LocalIsChinese
+import com.example.nutritracker.util.LocaleHelper
+import com.example.nutritracker.util.tr
 import com.example.nutritracker.util.UnitCalc
 import java.io.File
 import java.time.LocalDate
@@ -134,9 +137,9 @@ fun NumberPickerDialog(
                     horizontalArrangement = Arrangement.End,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    TextButton(onClick = onDismiss) { Text("取消") }
+                    TextButton(onClick = onDismiss) { Text(tr("取消", "Cancel")) }
                     Spacer(modifier = Modifier.width(8.dp))
-                    Button(onClick = { onConfirm(currentValue) }) { Text("确定") }
+                    Button(onClick = { onConfirm(currentValue) }) { Text(tr("确定", "Confirm")) }
                 }
             }
         }
@@ -163,10 +166,10 @@ fun AppDatePickerDialog(
                         onConfirm(LocalDate.ofEpochDay(millis / 86400000L))
                     }
                 }
-            ) { Text("确定") }
+            ) { Text(tr("确定", "Confirm")) }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("取消") }
+            TextButton(onClick = onDismiss) { Text(tr("取消", "Cancel")) }
         },
         colors = DatePickerDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)
     ) {
@@ -194,12 +197,24 @@ fun QuickAiTextLogDialog(
 ) {
     var text by remember { mutableStateOf("") }
     var selectedType by remember { mutableStateOf(initialType) }
-    val examples = listOf(
-        "一碗牛肉面加一个卤蛋",
-        "两片全麦面包 + 无糖拿铁",
-        "轻食鸡胸肉沙拉配油醋汁",
-        "黄焖鸡米饭微辣外卖"
-    )
+    val isZh = LocalIsChinese.current
+    val examples = remember(isZh) {
+        if (isZh) {
+            listOf(
+                "一碗牛肉面加一个卤蛋",
+                "两片全麦面包 + 无糖拿铁",
+                "轻食鸡胸肉沙拉配油醋汁",
+                "黄焖鸡米饭微辣外卖"
+            )
+        } else {
+            listOf(
+                "A bowl of beef noodle soup with a boiled egg",
+                "Two slices of whole wheat toast + iced Americano",
+                "Grilled chicken breast salad with vinaigrette",
+                "Salmon poke bowl with brown rice and avocado"
+            )
+        }
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -209,7 +224,7 @@ fun QuickAiTextLogDialog(
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Icon(Icons.Filled.AutoAwesome, null, tint = MaterialTheme.colorScheme.primary)
-                Text("AI 一句话记餐", fontWeight = FontWeight.Bold)
+                Text(tr("AI 一句话记餐", "AI Quick Text Log"), fontWeight = FontWeight.Bold)
             }
         },
         text = {
@@ -218,15 +233,20 @@ fun QuickAiTextLogDialog(
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 Text(
-                    text = "描述吃了什么及大致份量，AI 将自动估算热量、宏量与微量营养素",
+                    text = tr(
+                        "描述吃了什么及大致份量，AI 将自动估算热量、宏量与微量营养素",
+                        "Describe what you ate and approximate portions — AI estimates calories, macros & micros"
+                    ),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 OutlinedTextField(
                     value = text,
                     onValueChange = { text = it },
-                    label = { Text("饮食描述") },
-                    placeholder = { Text("例：一碗番茄鸡蛋面加半个煎蛋") },
+                    label = { Text(tr("饮食描述", "Meal description")) },
+                    placeholder = {
+                        Text(tr("例：一碗番茄鸡蛋面加半个煎蛋", "e.g., Chicken bowl with steamed rice and broccoli"))
+                    },
                     minLines = 2,
                     maxLines = 4,
                     modifier = Modifier.fillMaxWidth()
@@ -261,11 +281,11 @@ fun QuickAiTextLogDialog(
                 onClick = { onSubmit(text.trim(), selectedType) },
                 enabled = text.isNotBlank()
             ) {
-                Text("开始解析")
+                Text(tr("开始解析", "Analyze"))
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("取消") }
+            TextButton(onClick = onDismiss) { Text(tr("取消", "Cancel")) }
         },
         containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
     )
@@ -292,11 +312,12 @@ fun AiResultReviewDialog(
 ) {
     val analysisResult = task.result ?: return
     val raw = analysisResult.nutritionResult
+    val defaultMealLabel = tr("AI 识别食物", "AI Analyzed Meal")
 
     var mealName by remember(task.id) {
         mutableStateOf(
             raw.mealName.ifBlank {
-                raw.foodItems.take(3).joinToString(" + ") { it.name }.ifBlank { "AI 识别食物" }
+                raw.foodItems.take(3).joinToString(" + ") { it.name }.ifBlank { defaultMealLabel }
             }
         )
     }
@@ -347,13 +368,13 @@ fun AiResultReviewDialog(
                     ) {
                         Icon(Icons.Filled.AutoAwesome, null, tint = MaterialTheme.colorScheme.primary)
                         Text(
-                            text = "确认识别结果",
+                            text = tr("确认识别结果", "Review Analysis"),
                             style = MaterialTheme.typography.titleLarge,
                             fontWeight = FontWeight.Bold
                         )
                     }
                     IconButton(onClick = onDismiss, modifier = Modifier.size(32.dp)) {
-                        Icon(Icons.Filled.Close, contentDescription = "稍后确认")
+                        Icon(Icons.Filled.Close, contentDescription = tr("稍后确认", "Review later"))
                     }
                 }
 
@@ -373,7 +394,7 @@ fun AiResultReviewDialog(
                                         .data(File(thumb))
                                         .crossfade(true)
                                         .build(),
-                                    contentDescription = "点击查看大图",
+                                    contentDescription = tr("点击查看大图", "Tap to view full image"),
                                     contentScale = ContentScale.Crop,
                                     modifier = Modifier
                                         .size(64.dp)
@@ -384,7 +405,7 @@ fun AiResultReviewDialog(
                             OutlinedTextField(
                                 value = mealName,
                                 onValueChange = { mealName = it },
-                                label = { Text("餐食名称") },
+                                label = { Text(tr("餐食名称", "Meal name")) },
                                 singleLine = true,
                                 modifier = Modifier.weight(1f)
                             )
@@ -422,7 +443,10 @@ fun AiResultReviewDialog(
                                     )
                                 }
                                 Text(
-                                    text = "碳水 ${scaledCarbs.roundToInt()}g · 脂肪 ${scaledFat.roundToInt()}g · 蛋白质 ${scaledProtein.roundToInt()}g",
+                                    text = tr(
+                                        "碳水 ${scaledCarbs.roundToInt()}g · 脂肪 ${scaledFat.roundToInt()}g · 蛋白质 ${scaledProtein.roundToInt()}g",
+                                        "Carbs ${scaledCarbs.roundToInt()}g · Fat ${scaledFat.roundToInt()}g · Protein ${scaledProtein.roundToInt()}g"
+                                    ),
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f)
                                 )
@@ -434,7 +458,7 @@ fun AiResultReviewDialog(
                     item {
                         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                             Text(
-                                text = "份量倍率调整",
+                                text = tr("份量倍率调整", "Portion Multiplier"),
                                 style = MaterialTheme.typography.labelMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -468,13 +492,19 @@ fun AiResultReviewDialog(
                                     )
                                 }
                             }
+                            val isZh = LocalIsChinese.current
                             OutlinedButton(
                                 onClick = { showDatePicker = true },
                                 modifier = Modifier.fillMaxWidth()
                             ) {
                                 Icon(Icons.Filled.CalendarMonth, null, Modifier.size(16.dp))
                                 Spacer(Modifier.width(6.dp))
-                                Text("记录日期：${date.format(DateTimeFormatter.ofPattern("yyyy年MM月dd日"))}")
+                                Text(
+                                    tr(
+                                        "记录日期：${LocaleHelper.formatFullDate(date, true)}",
+                                        "Date: ${LocaleHelper.formatFullDate(date, false)}"
+                                    )
+                                )
                             }
                         }
                     }
@@ -483,7 +513,10 @@ fun AiResultReviewDialog(
                     if (items.isNotEmpty()) {
                         item {
                             Text(
-                                text = "识别明细 (${items.size} 项，可删减或调整克重)",
+                                text = tr(
+                                    "识别明细 (${items.size} 项，可删减或调整克重)",
+                                    "Detected Items (${items.size} — edit weights or remove)"
+                                ),
                                 style = MaterialTheme.typography.labelMedium,
                                 color = MaterialTheme.colorScheme.primary,
                                 fontWeight = FontWeight.SemiBold
@@ -535,7 +568,7 @@ fun AiResultReviewDialog(
                         colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
                         modifier = Modifier.weight(1f)
                     ) {
-                        Text("丢弃")
+                        Text(tr("丢弃", "Discard"))
                     }
                     Button(
                         onClick = {
@@ -554,7 +587,7 @@ fun AiResultReviewDialog(
                     ) {
                         Icon(Icons.Filled.Check, null, Modifier.size(18.dp))
                         Spacer(Modifier.width(6.dp))
-                        Text("确认记录")
+                        Text(tr("确认记录", "Confirm Log"))
                     }
                 }
             }
@@ -619,7 +652,7 @@ private fun ReviewSubItemRow(
                     weightText = raw
                     raw.toDoubleOrNull()?.takeIf { it > 0 }?.let { onUpdateWeight(it) }
                 },
-                label = { Text("克") },
+                label = { Text(tr("克", "g")) },
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 modifier = Modifier.width(82.dp)
@@ -628,7 +661,7 @@ private fun ReviewSubItemRow(
                 IconButton(onClick = onRemove, modifier = Modifier.size(32.dp)) {
                     Icon(
                         Icons.Filled.DeleteOutline,
-                        contentDescription = "移除子项",
+                        contentDescription = tr("移除子项", "Remove item"),
                         tint = MaterialTheme.colorScheme.error,
                         modifier = Modifier.size(18.dp)
                     )
@@ -663,7 +696,7 @@ fun WaterDetailDialog(
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Icon(Icons.Filled.WaterDrop, null, tint = waterColor)
-                Text("饮水记录 ($totalMl / ${goalMl}ml)", fontWeight = FontWeight.Bold)
+                Text(tr("饮水记录 ($totalMl / ${goalMl}ml)", "Water Intake ($totalMl / ${goalMl}ml)"), fontWeight = FontWeight.Bold)
             }
         },
         text = {
@@ -675,7 +708,7 @@ fun WaterDetailDialog(
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 Text(
-                    text = "快速记录",
+                    text = tr("快速记录", "Quick Log"),
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -699,7 +732,7 @@ fun WaterDetailDialog(
                     OutlinedTextField(
                         value = customMl,
                         onValueChange = { customMl = it },
-                        label = { Text("自定义 ml") },
+                        label = { Text(tr("自定义 ml", "Custom ml")) },
                         singleLine = true,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         modifier = Modifier.weight(1f)
@@ -713,7 +746,7 @@ fun WaterDetailDialog(
                         },
                         enabled = customMl.toIntOrNull()?.let { it in 10..5000 } == true
                     ) {
-                        Text("添加")
+                        Text(tr("添加", "Add"))
                     }
                 }
 
@@ -721,13 +754,13 @@ fun WaterDetailDialog(
 
                 if (entries.isEmpty()) {
                     Text(
-                        text = "暂无饮水记录",
+                        text = tr("暂无饮水记录", "No water logs today"),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 } else {
                     Text(
-                        text = "今日明细",
+                        text = tr("今日明细", "Today's Entries"),
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -747,7 +780,7 @@ fun WaterDetailDialog(
                             ) {
                                 Icon(
                                     Icons.Filled.DeleteOutline,
-                                    contentDescription = "删除",
+                                    contentDescription = tr("删除", "Delete"),
                                     tint = MaterialTheme.colorScheme.error,
                                     modifier = Modifier.size(18.dp)
                                 )
@@ -758,7 +791,7 @@ fun WaterDetailDialog(
             }
         },
         confirmButton = {
-            TextButton(onClick = onDismiss) { Text("关闭") }
+            TextButton(onClick = onDismiss) { Text(tr("关闭", "Close")) }
         },
         containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
     )

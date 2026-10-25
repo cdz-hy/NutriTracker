@@ -10,6 +10,7 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.HelpOutline
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -36,7 +37,7 @@ import kotlin.math.roundToInt
 
 @Composable
 fun CalorieOverviewCard(
-    title: String = "今日热量",
+    title: String? = null,
     goal: Double,
     supplied: Double,
     burned: Double,
@@ -46,6 +47,7 @@ fun CalorieOverviewCard(
     useKj: Boolean = false,
     onNavigateToSources: () -> Unit
 ) {
+    val resolvedTitle = title ?: tr("今日热量", "Today's Calories")
     var warningExpanded by remember { mutableStateOf(false) }
     val unitLabel = UnitCalc.energyUnitLabel(useKj)
 
@@ -77,15 +79,15 @@ fun CalorieOverviewCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "$title ($unitLabel)",
+                    text = "$resolvedTitle ($unitLabel)",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface
                 )
                 IconButton(onClick = onNavigateToSources, modifier = Modifier.size(28.dp)) {
                     Icon(
-                        imageVector = Icons.Filled.HelpOutline,
-                        contentDescription = "查看计算科学依据",
+                        imageVector = Icons.AutoMirrored.Filled.HelpOutline,
+                        contentDescription = tr("查看计算科学依据", "View scientific sources"),
                         tint = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.size(Dimens.IconSizeSmall)
                     )
@@ -115,7 +117,7 @@ fun CalorieOverviewCard(
                             color = if (left < 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
                         )
                         Text(
-                            text = "剩余 $unitLabel",
+                            text = tr("剩余 $unitLabel", "$unitLabel left"),
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -125,19 +127,19 @@ fun CalorieOverviewCard(
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     KcalRow(
                         icon = Icons.Filled.Flag,
-                        label = "目标",
+                        label = tr("目标", "Goal"),
                         value = "$animGoal $unitLabel",
                         color = MaterialTheme.colorScheme.onSurface
                     )
                     KcalRow(
                         icon = Icons.Filled.Restaurant,
-                        label = "已摄入",
+                        label = tr("已摄入", "Food"),
                         value = "$animSupplied $unitLabel",
                         color = if (supplied > goal && goal > 0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
                     )
                     KcalRow(
                         icon = Icons.Filled.LocalFireDepartment,
-                        label = "已燃烧",
+                        label = tr("已燃烧", "Burned"),
                         value = "$animBurned $unitLabel",
                         color = if (LocalUseDarkTheme.current) BurnColorDark else BurnColor
                     )
@@ -169,7 +171,10 @@ fun CalorieOverviewCard(
                                 modifier = Modifier.size(Dimens.IconSizeSmall)
                             )
                             Text(
-                                text = "目标低于推荐值 ${UnitCalc.formatEnergy(floor, useKj)}",
+                                text = tr(
+                                    "目标低于推荐值 ${UnitCalc.formatEnergy(floor, useKj)}",
+                                    "Goal below ${UnitCalc.formatEnergy(floor, useKj)} floor"
+                                ),
                                 style = MaterialTheme.typography.bodySmall,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onErrorContainer,
@@ -190,7 +195,10 @@ fun CalorieOverviewCard(
                         ) {
                             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                 Text(
-                                    text = "在没有医疗指导的情况下，成年人不宜长期每天摄入低于 ${UnitCalc.formatEnergy(floor, useKj)} 的热量。这可能导致肌肉流失与代谢放缓。",
+                                    text = tr(
+                                        "在没有医疗指导的情况下，成年人不宜长期每天摄入低于 ${UnitCalc.formatEnergy(floor, useKj)} 的热量。这可能导致肌肉流失与代谢放缓。",
+                                        "Without medical supervision, adults should avoid sustained daily intake below ${UnitCalc.formatEnergy(floor, useKj)}, as it may cause muscle loss and metabolic slowdown."
+                                    ),
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onErrorContainer.copy(alpha = 0.85f)
                                 )
@@ -204,7 +212,7 @@ fun CalorieOverviewCard(
                                     modifier = Modifier.align(Alignment.End)
                                 ) {
                                     Text(
-                                        text = "查看医学依据与说明 →",
+                                        text = tr("查看医学依据与说明 →", "View medical references →"),
                                         style = MaterialTheme.typography.labelSmall,
                                         fontWeight = FontWeight.SemiBold
                                     )
@@ -308,9 +316,9 @@ fun MacroProgressRow(
                 .padding(Dimens.CardInnerPadding),
             horizontalArrangement = Arrangement.SpaceEvenly
         ) {
-            MacroItem("碳水", carbsCurrent, carbsGoal, if (isDark) CarbsColorDark else CarbsColor)
-            MacroItem("脂肪", fatCurrent, fatGoal, if (isDark) FatColorDark else FatColor)
-            MacroItem("蛋白质", proteinCurrent, proteinGoal, if (isDark) ProteinColorDark else ProteinColor)
+            MacroItem(tr("碳水", "Carbs"), carbsCurrent, carbsGoal, if (isDark) CarbsColorDark else CarbsColor)
+            MacroItem(tr("脂肪", "Fat"), fatCurrent, fatGoal, if (isDark) FatColorDark else FatColor)
+            MacroItem(tr("蛋白质", "Protein"), proteinCurrent, proteinGoal, if (isDark) ProteinColorDark else ProteinColor)
         }
     }
 }
@@ -409,13 +417,17 @@ fun DriNutrientPanel(
                 )
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = "膳食营养参考面板 (DRI)",
+                        text = tr("膳食营养参考面板 (DRI)", "Micronutrient Targets (DRI)"),
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.colorScheme.onSurface
                     )
                     Text(
-                        text = if (expanded) "基于 IOM 膳食参考摄入量" else "点击展开查看纤维、糖、钠、饱和脂肪与胆固醇",
+                        text = if (expanded) {
+                            tr("基于 IOM 膳食参考摄入量", "Based on IOM Dietary Reference Intakes")
+                        } else {
+                            tr("点击展开查看纤维、糖、钠、饱和脂肪与胆固醇", "Tap to view fiber, sugars, sodium, sat. fat & cholesterol")
+                        },
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -423,14 +435,14 @@ fun DriNutrientPanel(
                 IconButton(onClick = onNavigateToSources, modifier = Modifier.size(28.dp)) {
                     Icon(
                         Icons.Filled.Info,
-                        contentDescription = "查看科学文献来源",
+                        contentDescription = tr("查看科学文献来源", "View scientific sources"),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.size(18.dp)
                     )
                 }
                 Icon(
                     imageVector = if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
-                    contentDescription = if (expanded) "收起" else "展开",
+                    contentDescription = if (expanded) tr("收起", "Collapse") else tr("展开", "Expand"),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
@@ -448,14 +460,14 @@ fun DriNutrientPanel(
                             onClick = { weeklyView = false },
                             shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2)
                         ) {
-                            Text("当日", style = MaterialTheme.typography.labelMedium)
+                            Text(tr("当日", "Today"), style = MaterialTheme.typography.labelMedium)
                         }
                         SegmentedButton(
                             selected = weeklyView,
                             onClick = { weeklyView = true },
                             shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2)
                         ) {
-                            Text("7日均", style = MaterialTheme.typography.labelMedium)
+                            Text(tr("7日均", "7D Avg"), style = MaterialTheme.typography.labelMedium)
                         }
                     }
                 }
@@ -486,6 +498,7 @@ private fun DriNutrientRow(
     reference: Double
 ) {
     val isDark = LocalUseDarkTheme.current
+    val isZh = LocalIsChinese.current
     val ratio = if (reference > 0) (value / reference).toFloat() else 0f
     val clamped = ratio.coerceIn(0f, 1f)
     val barColor = when {
@@ -502,13 +515,14 @@ private fun DriNutrientRow(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = key.label,
+                text = key.displayLabel(isZh),
                 style = MaterialTheme.typography.bodySmall,
                 fontWeight = FontWeight.Medium,
                 color = MaterialTheme.colorScheme.onSurface
             )
+            val prefix = if (key.excessMatters) tr("上限 ", "Max ") else tr("建议 ", "Target ")
             Text(
-                text = "${if (key.excessMatters) "上限 " else "建议 "}${UnitCalc.formatDecimal(value, if (value >= 10) 0 else 1)} / ${reference.roundToInt()} ${key.unit}",
+                text = "$prefix${UnitCalc.formatDecimal(value, if (value >= 10) 0 else 1)} / ${reference.roundToInt()} ${key.unit}",
                 style = MaterialTheme.typography.labelSmall,
                 color = if (key.excessMatters && ratio > 1f) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -578,7 +592,7 @@ fun WaterCard(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = "饮水",
+                            text = tr("饮水", "Water"),
                             style = MaterialTheme.typography.titleSmall,
                             fontWeight = FontWeight.SemiBold,
                             color = MaterialTheme.colorScheme.onSurface
@@ -602,7 +616,7 @@ fun WaterCard(
                         contentPadding = PaddingValues(horizontal = 6.dp),
                         colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
                     ) {
-                        Text("撤回", style = MaterialTheme.typography.labelSmall)
+                        Text(tr("撤回", "Undo"), style = MaterialTheme.typography.labelSmall)
                     }
                 }
             }
@@ -632,7 +646,7 @@ fun WaterCard(
                     contentPadding = PaddingValues(horizontal = 8.dp),
                     modifier = Modifier.height(34.dp)
                 ) {
-                    Text("明细", style = MaterialTheme.typography.labelMedium)
+                    Text(tr("明细", "Log"), style = MaterialTheme.typography.labelMedium)
                 }
             }
         }
@@ -668,7 +682,10 @@ fun ActivityItem(
             },
             supportingContent = {
                 Text(
-                    text = "${activity.durationMinutes.roundToInt()} 分钟 · ${UnitCalc.formatEnergy(activity.burnedKcal, useKj)}",
+                    text = tr(
+                        "${activity.durationMinutes.roundToInt()} 分钟 · ${UnitCalc.formatEnergy(activity.burnedKcal, useKj)}",
+                        "${activity.durationMinutes.roundToInt()} min · ${UnitCalc.formatEnergy(activity.burnedKcal, useKj)}"
+                    ),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -685,7 +702,7 @@ fun ActivityItem(
                 IconButton(onClick = { showConfirm = true }, modifier = Modifier.size(36.dp)) {
                     Icon(
                         Icons.Filled.Delete,
-                        contentDescription = "删除",
+                        contentDescription = tr("删除", "Delete"),
                         tint = MaterialTheme.colorScheme.error,
                         modifier = Modifier.size(Dimens.IconSizeSmall)
                     )
@@ -699,16 +716,18 @@ fun ActivityItem(
     if (showConfirm) {
         AlertDialog(
             onDismissRequest = { showConfirm = false },
-            title = { Text("确认删除活动") },
-            text = { Text("确定要删除 \"${activity.name}\" 吗？") },
+            title = { Text(tr("确认删除活动", "Delete Activity")) },
+            text = {
+                Text(tr("确定要删除 \"${activity.name}\" 吗？", "Delete \"${activity.name}\"?"))
+            },
             confirmButton = {
                 TextButton(
                     onClick = { showConfirm = false; onDelete() },
                     colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
-                ) { Text("删除") }
+                ) { Text(tr("删除", "Delete")) }
             },
             dismissButton = {
-                TextButton(onClick = { showConfirm = false }) { Text("取消") }
+                TextButton(onClick = { showConfirm = false }) { Text(tr("取消", "Cancel")) }
             }
         )
     }
@@ -718,12 +737,8 @@ fun ActivityItem(
 // 餐别标签与图标共享 Helper
 // ══════════════════════════════════════════════════════════════════════════════
 
-fun mealTypeLabel(type: IntakeType): String = when (type) {
-    IntakeType.BREAKFAST -> "早餐"
-    IntakeType.LUNCH -> "午餐"
-    IntakeType.DINNER -> "晚餐"
-    IntakeType.SNACK -> "零食"
-}
+@Composable
+fun mealTypeLabel(type: IntakeType): String = LocaleHelper.mealTypeLabel(type, LocalIsChinese.current)
 
 fun mealTypeIcon(type: IntakeType): ImageVector = when (type) {
     IntakeType.BREAKFAST -> Icons.Filled.FreeBreakfast

@@ -19,6 +19,7 @@ import androidx.compose.ui.unit.dp
 import com.example.nutritracker.feature.camera.AnalysisTask
 import com.example.nutritracker.ui.theme.M3Duration
 import com.example.nutritracker.ui.theme.M3Easing
+import com.example.nutritracker.util.tr
 
 @Composable
 fun AiFloatingQueueBanner(
@@ -51,7 +52,8 @@ fun AiFloatingQueueBanner(
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             if (pendingConfirmTasks.isNotEmpty()) {
                 val first = pendingConfirmTasks.first()
-                val title = first.result?.nutritionResult?.mealName?.ifBlank { "AI 识别结果" } ?: "AI 识别结果"
+                val defaultTitle = tr("AI 识别结果", "AI Analysis Result")
+                val title = first.result?.nutritionResult?.mealName?.ifBlank { defaultTitle } ?: defaultTitle
                 Surface(
                     shape = MaterialTheme.shapes.large,
                     color = MaterialTheme.colorScheme.primaryContainer,
@@ -72,15 +74,21 @@ fun AiFloatingQueueBanner(
                         )
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = "待确认：$title",
+                                text = tr("待确认：$title", "Review: $title"),
                                 style = MaterialTheme.typography.titleSmall,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onPrimaryContainer
                             )
                             Text(
                                 text = if (pendingConfirmTasks.size > 1)
-                                    "共 ${pendingConfirmTasks.size} 项识别已完成，点击微调份量并入库"
-                                else "识别完成，点击微调份量并确认入库",
+                                    tr(
+                                        "共 ${pendingConfirmTasks.size} 项识别已完成，点击微调份量并入库",
+                                        "${pendingConfirmTasks.size} items ready — tap to adjust portions & log"
+                                    )
+                                else tr(
+                                    "识别完成，点击微调份量并确认入库",
+                                    "Analysis ready — tap to adjust & log"
+                                ),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f)
                             )
@@ -89,7 +97,7 @@ fun AiFloatingQueueBanner(
                             onClick = { onReviewPending(first) },
                             contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
                         ) {
-                            Text("确认")
+                            Text(tr("确认", "Review"))
                         }
                     }
                 }
@@ -115,12 +123,12 @@ fun AiFloatingQueueBanner(
                         )
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = "AI 智能分析中 ($activeCount 个任务)",
+                                text = tr("AI 智能分析中 ($activeCount 个任务)", "AI analyzing ($activeCount active)"),
                                 style = MaterialTheme.typography.titleSmall,
                                 fontWeight = FontWeight.SemiBold
                             )
                             Text(
-                                text = "后台处理中，可继续自由操作",
+                                text = tr("后台处理中，可继续自由操作", "Running in background — keep browsing"),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -129,7 +137,7 @@ fun AiFloatingQueueBanner(
                             onClick = { onCancelActive(firstActiveTask.id) },
                             modifier = Modifier.size(32.dp)
                         ) {
-                            Icon(Icons.Filled.Close, contentDescription = "取消任务", modifier = Modifier.size(18.dp))
+                            Icon(Icons.Filled.Close, contentDescription = tr("取消任务", "Cancel task"), modifier = Modifier.size(18.dp))
                         }
                     }
                 }
@@ -155,13 +163,13 @@ fun AiFloatingQueueBanner(
                         )
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = "AI 识别失败",
+                                text = tr("AI 识别失败", "AI analysis failed"),
                                 style = MaterialTheme.typography.labelLarge,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onErrorContainer
                             )
                             Text(
-                                text = failed.errorMessage ?: "请检查网络或配置",
+                                text = failed.errorMessage ?: tr("请检查网络或配置", "Check network or API settings"),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onErrorContainer,
                                 maxLines = 2
@@ -170,14 +178,14 @@ fun AiFloatingQueueBanner(
                         IconButton(onClick = { onRetryFailed(failed.id) }, modifier = Modifier.size(32.dp)) {
                             Icon(
                                 Icons.Filled.Refresh,
-                                contentDescription = "重试",
+                                contentDescription = tr("重试", "Retry"),
                                 tint = MaterialTheme.colorScheme.onErrorContainer
                             )
                         }
                         IconButton(onClick = { onDismissFailed(failed.id) }, modifier = Modifier.size(32.dp)) {
                             Icon(
                                 Icons.Filled.Close,
-                                contentDescription = "关闭",
+                                contentDescription = tr("关闭", "Dismiss"),
                                 tint = MaterialTheme.colorScheme.onErrorContainer
                             )
                         }

@@ -22,7 +22,10 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.nutritracker.ui.theme.*
+import com.example.nutritracker.util.LocalIsChinese
+import com.example.nutritracker.util.LocaleHelper
 import com.example.nutritracker.util.UnitCalc
+import com.example.nutritracker.util.tr
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import kotlin.math.roundToInt
@@ -60,20 +63,25 @@ fun CalorieBarChart(
         selectedIdx?.let { idx ->
             val p = points.getOrNull(idx)
             if (p != null) {
+                val isZh = LocalIsChinese.current
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = p.date.format(DateTimeFormatter.ofPattern("MM月dd日")),
+                        text = LocaleHelper.formatMonthDay(p.date, isZh),
                         style = MaterialTheme.typography.labelLarge,
                         fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.colorScheme.onSurface
                     )
                     Text(
-                        text = "摄入 ${UnitCalc.formatEnergy(p.intakeKcal, useKj)} / 目标 ${UnitCalc.formatEnergy(p.goalKcal, useKj)}" +
-                            if (p.burnedKcal > 0) " · 运动 ${UnitCalc.formatEnergy(p.burnedKcal, useKj)}" else "",
+                        text = tr(
+                            "摄入 ${UnitCalc.formatEnergy(p.intakeKcal, useKj)} / 目标 ${UnitCalc.formatEnergy(p.goalKcal, useKj)}" +
+                                if (p.burnedKcal > 0) " · 运动 ${UnitCalc.formatEnergy(p.burnedKcal, useKj)}" else "",
+                            "In ${UnitCalc.formatEnergy(p.intakeKcal, useKj)} / Goal ${UnitCalc.formatEnergy(p.goalKcal, useKj)}" +
+                                if (p.burnedKcal > 0) " · Burned ${UnitCalc.formatEnergy(p.burnedKcal, useKj)}" else ""
+                        ),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -183,9 +191,9 @@ fun CalorieBarChart(
             horizontalArrangement = Arrangement.spacedBy(16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            ChartLegendDot(color = primary, label = "当日摄入")
-            ChartLegendDot(color = errorColor, label = "超标(>110%)")
-            ChartLegendDot(color = goalLineColor, label = "平均目标线")
+            ChartLegendDot(color = primary, label = tr("当日摄入", "Intake"))
+            ChartLegendDot(color = errorColor, label = tr("超标(>110%)", "Over (>110%)"))
+            ChartLegendDot(color = goalLineColor, label = tr("平均目标线", "Avg Goal"))
         }
     }
 }
@@ -252,7 +260,7 @@ fun MacroDonutChart(
             }
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(
-                    text = if (totalKcal > 0) "供能比" else "无数据",
+                    text = if (totalKcal > 0) tr("供能比", "Energy %") else tr("无数据", "No Data"),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -263,9 +271,9 @@ fun MacroDonutChart(
             modifier = Modifier.weight(1f),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            MacroLegendRow("碳水化合物", carbsG, carbsPct, carbsColor)
-            MacroLegendRow("脂肪", fatG, fatPct, fatColor)
-            MacroLegendRow("蛋白质", proteinG, proteinPct, proteinColor)
+            MacroLegendRow(tr("碳水化合物", "Carbs"), carbsG, carbsPct, carbsColor)
+            MacroLegendRow(tr("脂肪", "Fat"), fatG, fatPct, fatColor)
+            MacroLegendRow(tr("蛋白质", "Protein"), proteinG, proteinPct, proteinColor)
         }
     }
 }
@@ -448,7 +456,10 @@ fun WeightLineChart(
             if (targetWeightKg != null) {
                 ChartLegendDot(
                     color = targetColor,
-                    label = "目标 ${UnitCalc.formatWeight(targetWeightKg, useImperial)}"
+                    label = tr(
+                        "目标 ${UnitCalc.formatWeight(targetWeightKg, useImperial)}",
+                        "Goal ${UnitCalc.formatWeight(targetWeightKg, useImperial)}"
+                    )
                 )
             }
             Text(

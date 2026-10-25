@@ -28,6 +28,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.example.nutritracker.util.LocaleHelper
+import com.example.nutritracker.util.tr
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import kotlinx.coroutines.Dispatchers
@@ -102,7 +104,7 @@ fun FullScreenImageDialog(
                     onClick = onDismiss,
                     colors = IconButtonDefaults.iconButtonColors(contentColor = Color.White)
                 ) {
-                    Icon(Icons.Filled.Close, contentDescription = "关闭", modifier = Modifier.size(32.dp))
+                    Icon(Icons.Filled.Close, contentDescription = tr("关闭", "Close"), modifier = Modifier.size(32.dp))
                 }
 
                 IconButton(
@@ -113,7 +115,7 @@ fun FullScreenImageDialog(
                     },
                     colors = IconButtonDefaults.iconButtonColors(contentColor = Color.White)
                 ) {
-                    Icon(Icons.Filled.Download, contentDescription = "保存到相册", modifier = Modifier.size(32.dp))
+                    Icon(Icons.Filled.Download, contentDescription = tr("保存到相册", "Save to Gallery"), modifier = Modifier.size(32.dp))
                 }
             }
         }
@@ -121,12 +123,13 @@ fun FullScreenImageDialog(
 }
 
 private suspend fun saveImageToGallery(context: Context, imagePath: String) {
+    val isZh = LocaleHelper.isChinese(context)
     withContext(Dispatchers.IO) {
         try {
             val file = File(imagePath)
             if (!file.exists()) {
                 withContext(Dispatchers.Main) {
-                    Toast.makeText(context, "文件不存在", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, LocaleHelper.tr(isZh, "文件不存在", "File not found"), Toast.LENGTH_SHORT).show()
                 }
                 return@withContext
             }
@@ -160,16 +163,16 @@ private suspend fun saveImageToGallery(context: Context, imagePath: String) {
                 }
 
                 withContext(Dispatchers.Main) {
-                    Toast.makeText(context, "图片已保存到相册", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, LocaleHelper.tr(isZh, "图片已保存到相册", "Image saved to gallery"), Toast.LENGTH_SHORT).show()
                 }
             } else {
                 withContext(Dispatchers.Main) {
-                    Toast.makeText(context, "保存失败，无法创建文件", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, LocaleHelper.tr(isZh, "保存失败，无法创建文件", "Failed to save: could not create file"), Toast.LENGTH_SHORT).show()
                 }
             }
         } catch (e: Exception) {
             withContext(Dispatchers.Main) {
-                Toast.makeText(context, "保存失败: ${e.localizedMessage}", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, LocaleHelper.tr(isZh, "保存失败: ${e.localizedMessage}", "Save failed: ${e.localizedMessage}"), Toast.LENGTH_SHORT).show()
             }
         }
     }
