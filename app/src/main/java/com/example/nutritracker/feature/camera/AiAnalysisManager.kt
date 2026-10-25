@@ -4,7 +4,9 @@ import android.content.Context
 import android.net.Uri
 import com.example.nutritracker.data.entity.*
 import com.example.nutritracker.data.repository.*
+import com.example.nutritracker.util.DayBoundaryCalc
 import com.example.nutritracker.util.ImageUtils
+import com.example.nutritracker.util.LocaleHelper
 import com.example.nutritracker.widget.NutriTrackerWidgetUpdater
 import com.google.gson.Gson
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -42,7 +44,8 @@ class AiAnalysisManager @Inject constructor(
     private val mealRepo: MealRepository,
     private val intakeRepo: IntakeRepository,
     private val trackedDayRepo: TrackedDayRepository,
-    private val settingsRepo: SettingsRepository
+    private val settingsRepo: SettingsRepository,
+    private val dayBoundaryCalc: DayBoundaryCalc
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
@@ -120,16 +123,18 @@ class AiAnalysisManager @Inject constructor(
     fun cancelTask(taskId: Int) {
         runningJobs.remove(taskId)?.cancel()
         val task = _tasks.value.find { it.id == taskId }
-        if (task != null && task.uris.isNotEmpty()) {
-            ImageUtils.cleanupTempFiles(appContext, task.uris)
+        if (task != null) {
+            if (task.uris.isNotEmpty()) ImageUtils.cleanupTempFiles(appContext, task.uris)
+            ImageUtils.deleteThumbnail(appContext, task.result?.thumbnailPath)
         }
         _tasks.update { list -> list.filterNot { it.id == taskId } }
     }
 
     fun dismissTask(taskId: Int) {
         val task = _tasks.value.find { it.id == taskId }
-        if (task != null && task.uris.isNotEmpty()) {
-            ImageUtils.cleanupTempFiles(appContext, task.uris)
+        if (task != null) {
+            if (task.uris.isNotEmpty()) ImageUtils.cleanupTempFiles(appContext, task.uris)
+            ImageUtils.deleteThumbnail(appContext, task.result?.thumbnailPath)
         }
         _tasks.update { list -> list.filterNot { it.id == taskId } }
     }
@@ -152,18 +157,20 @@ class AiAnalysisManager @Inject constructor(
                 val autoConfirm = settingsRepo.aiAutoConfirm.first()
 
                 if (apiKey.isBlank()) {
-                    val msg = "请先在设置中配置 AI API Key"
+                    val isZh = LocaleHelper.isChinese(appContext)
+                    val msg = LocaleHelper.tr(isZh, "请先在设置中配置 AI API Key", "Please configure your AI API Key in Settings first")
                     _analysisError.value = msg
                     updateTask(task.id) { it.copy(status = TaskStatus.FAILED, errorMessage = msg) }
                     return@launch
                 }
 
+                val isZh = LocaleHelper.isChinese(appContext)
                 val result = withContext(Dispatchers.IO) {
-                    val analyzer = AiFoodAnalyzer(okHttpClient, gson, apiKey, baseUrl, model)
+                    val analyzer = AiFoodAnalyzer(okHttpClient, gson, apiKey, baseUrl, model, isZh = isZh)
                     when (task.mode) {
                         AnalysisMode.IMAGE -> {
-                            val thumbnailPath = ImageUtils.saveThumbnail(appContext, task.uris.first())
                             analyzer.analyzeImages(appContext, task.uris, task.notes).map { nutrition ->
+                                val thumbnailPath = ImageUtils.saveThumbnail(appContext, task.uris.first())
                                 AnalysisResult(nutritionResult = nutrition, thumbnailPath = thumbnailPath)
                             }
                         }
@@ -181,6 +188,7 @@ class AiAnalysisManager @Inject constructor(
                             ImageUtils.cleanupTempFiles(appContext, task.uris)
                         }
                         if (autoConfirm) {
+                            val nowZh = LocaleHelper.isChinese(appContext)
                             persistAnalysisResult(
                                 mealName = resolveMealName(analysisResult.nutritionResult),
                                 items = analysisResult.nutritionResult.foodItems,
@@ -190,7 +198,10 @@ class AiAnalysisManager @Inject constructor(
                                 date = task.date
                             )
                             _tasks.update { list -> list.filterNot { it.id == task.id } }
-                            _analysisSuccess.emit("AI 识别成功！已记录${intakeTypeName(task.intakeType)}")
+                            val typeLabel = LocaleHelper.mealTypeLabel(task.intakeType, nowZh)
+                            _analysisSuccess.emit(
+                                LocaleHelper.tr(nowZh, "AI 识别成功！已记录$typeLabel", "AI logged to $typeLabel")
+                            )
                         } else {
                             updateTask(task.id) {
                                 it.copy(status = TaskStatus.AWAITING_CONFIRM, result = analysisResult)
@@ -198,7 +209,11 @@ class AiAnalysisManager @Inject constructor(
                         }
                     },
                     onFailure = { error ->
-                        val msg = error.message ?: "识别失败，请重试！"
+                        val msg = error.message ?: LocaleHelper.tr(
+                            LocaleHelper.isChinese(appContext),
+                            "识别失败，请重试！",
+                            "Analysis failed, please retry."
+                        )
                         _analysisError.value = msg
                         updateTask(task.id) { it.copy(status = TaskStatus.FAILED, errorMessage = msg) }
                     }
@@ -206,7 +221,11 @@ class AiAnalysisManager @Inject constructor(
             } catch (_: CancellationException) {
                 // Handled by cancelTask
             } catch (e: Exception) {
-                val msg = e.message ?: "网络或配置异常，请重试！"
+                val msg = e.message ?: LocaleHelper.tr(
+                    LocaleHelper.isChinese(appContext),
+                    "网络或配置异常，请重试！",
+                    "Network or configuration error, please retry."
+                )
                 _analysisError.value = msg
                 updateTask(task.id) { it.copy(status = TaskStatus.FAILED, errorMessage = msg) }
             } finally {
@@ -266,7 +285,9 @@ class AiAnalysisManager @Inject constructor(
                 date = date
             )
             _tasks.update { list -> list.filterNot { it.id == taskId } }
-            _analysisSuccess.emit("已记录到${intakeTypeName(intakeType)}")
+            val isZh = LocaleHelper.isChinese(appContext)
+            val typeLabel = LocaleHelper.mealTypeLabel(intakeType, isZh)
+            _analysisSuccess.emit(LocaleHelper.tr(isZh, "已记录到$typeLabel", "Logged to $typeLabel"))
         }
     }
 
@@ -320,7 +341,9 @@ class AiAnalysisManager @Inject constructor(
             )
         )
 
-        val dateTime = if (date == LocalDate.now()) LocalDateTime.now() else date.atTime(12, 0)
+        val offset = settingsRepo.dayBoundaryMinutes.first()
+        val logicalToday = dayBoundaryCalc.currentLogicalDay(offset)
+        val dateTime = if (date == logicalToday) LocalDateTime.now() else date.atTime(12, 0)
         intakeRepo.upsert(Intake(mealId = mealId, intakeType = intakeType, amount = totalWeight, dateTime = dateTime))
         trackedDayRepo.saveGoalSnapshot(date, 0.0, 0.0, 0.0, 0.0)
         NutriTrackerWidgetUpdater.enqueueUpdate(appContext)
@@ -331,7 +354,7 @@ class AiAnalysisManager @Inject constructor(
             if (nutrition.foodItems.isNotEmpty()) {
                 nutrition.foodItems.take(3).joinToString(" + ") { it.name }
             } else {
-                "AI 识别食物"
+                LocaleHelper.tr(LocaleHelper.isChinese(appContext), "AI 识别食物", "AI Analyzed Meal")
             }
         }
 
@@ -339,12 +362,5 @@ class AiAnalysisManager @Inject constructor(
         _tasks.update { current ->
             current.map { if (it.id == taskId) transform(it) else it }
         }
-    }
-
-    private fun intakeTypeName(type: IntakeType): String = when (type) {
-        IntakeType.BREAKFAST -> "早餐"
-        IntakeType.LUNCH -> "午餐"
-        IntakeType.DINNER -> "晚餐"
-        IntakeType.SNACK -> "零食"
     }
 }

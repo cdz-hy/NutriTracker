@@ -20,6 +20,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.nutritracker.util.ImageUtils
+import com.example.nutritracker.util.tr
 import com.smarttoolfactory.cropper.ImageCropper
 import com.smarttoolfactory.cropper.model.OutlineType
 import com.smarttoolfactory.cropper.model.RectCropShape
@@ -70,7 +71,7 @@ fun ImageCropScreen(
             TopAppBar(
                 title = {
                     Text(
-                        "裁剪图片",
+                        tr("裁剪图片", "Crop Photo"),
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface
@@ -80,7 +81,7 @@ fun ImageCropScreen(
                     IconButton(onClick = onBack, enabled = !isCropping) {
                         Icon(
                             Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "返回",
+                            contentDescription = tr("返回", "Back"),
                             tint = MaterialTheme.colorScheme.onSurface
                         )
                     }
@@ -107,7 +108,7 @@ fun ImageCropScreen(
                         enabled = !isCropping,
                         modifier = Modifier.weight(1f).height(48.dp),
                         shape = MaterialTheme.shapes.medium
-                    ) { Text("取消") }
+                    ) { Text(tr("取消", "Cancel")) }
                     Button(
                         onClick = { if (!isCropping && imageBitmap != null) crop = true },
                         enabled = !isCropping && imageBitmap != null,
@@ -119,7 +120,7 @@ fun ImageCropScreen(
                     ) {
                         Icon(Icons.Filled.Crop, null, Modifier.size(18.dp))
                         Spacer(Modifier.width(8.dp))
-                        Text("确认裁剪")
+                        Text(tr("确认裁剪", "Apply Crop"))
                     }
                 }
             }
@@ -133,7 +134,7 @@ fun ImageCropScreen(
         ) {
             if (imageLoadError) {
                 Text(
-                    "图片加载失败",
+                    tr("图片加载失败", "Failed to load image"),
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.error
                 )

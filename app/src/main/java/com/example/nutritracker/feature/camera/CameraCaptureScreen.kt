@@ -24,11 +24,11 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.TextSnippet
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.PhotoLibrary
-import androidx.compose.material.icons.filled.TextSnippet
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.listSaver
@@ -46,6 +46,8 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import coil.compose.AsyncImage
 import com.example.nutritracker.util.ImageUtils
+import com.example.nutritracker.util.LocaleHelper
+import com.example.nutritracker.util.tr
 import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -86,12 +88,20 @@ fun CameraCaptureScreen(
         if (uris.isNotEmpty()) {
             val remainingSpace = maxImages - selectedUris.size
             if (remainingSpace <= 0) {
-                errorMessage = "最多只能选择 $maxImages 张图片"
+                errorMessage = LocaleHelper.tr(
+                    context,
+                    "最多只能选择 $maxImages 张图片",
+                    "Maximum $maxImages photos allowed"
+                )
             } else {
                 val added = uris.take(remainingSpace)
                 selectedUris = selectedUris + added
                 if (uris.size > remainingSpace) {
-                    errorMessage = "已达到上限 $maxImages 张，仅保留前 $remainingSpace 张"
+                    errorMessage = LocaleHelper.tr(
+                        context,
+                        "已达到上限 $maxImages 张，仅保留前 $remainingSpace 张",
+                        "Limit of $maxImages reached — kept first $remainingSpace photo(s)"
+                    )
                 }
             }
         }
@@ -110,7 +120,7 @@ fun CameraCaptureScreen(
             TopAppBar(
                 title = {
                     Text(
-                        text = "拍照识别食物",
+                        text = tr("拍照识别食物", "Scan Food"),
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface
@@ -123,7 +133,7 @@ fun CameraCaptureScreen(
                     }) {
                         Icon(
                             Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "返回",
+                            contentDescription = tr("返回", "Back"),
                             tint = MaterialTheme.colorScheme.onSurface
                         )
                     }
@@ -183,12 +193,15 @@ fun CameraCaptureScreen(
                             tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Text(
-                            text = "需要相机权限",
+                            text = tr("需要相机权限", "Camera Permission Required"),
                             style = MaterialTheme.typography.titleMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Text(
-                            text = "请授予相机权限以拍照识别，也可直接点击下方相册按钮选图",
+                            text = tr(
+                                "请授予相机权限以拍照识别，也可直接点击下方相册按钮选图",
+                                "Grant camera access to take food photos, or choose photos from your gallery below"
+                            ),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -196,7 +209,7 @@ fun CameraCaptureScreen(
                             FilledTonalButton(onClick = {
                                 permissionLauncher.launch(Manifest.permission.CAMERA)
                             }) {
-                                Text("授予权限")
+                                Text(tr("授予权限", "Grant Access"))
                             }
                             OutlinedButton(onClick = {
                                 val intent = Intent(
@@ -205,7 +218,7 @@ fun CameraCaptureScreen(
                                 )
                                 runCatching { context.startActivity(intent) }
                             }) {
-                                Text("系统设置")
+                                Text(tr("系统设置", "Settings"))
                             }
                         }
                     }
@@ -221,7 +234,7 @@ fun CameraCaptureScreen(
                     contentColor = MaterialTheme.colorScheme.onErrorContainer,
                     action = {
                         TextButton(onClick = { errorMessage = null }) {
-                            Text("关闭", color = MaterialTheme.colorScheme.onErrorContainer)
+                            Text(tr("关闭", "Dismiss"), color = MaterialTheme.colorScheme.onErrorContainer)
                         }
                     }
                 ) {
@@ -250,7 +263,7 @@ fun CameraCaptureScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Icon(
-                        Icons.Filled.TextSnippet,
+                        Icons.AutoMirrored.Filled.TextSnippet,
                         contentDescription = null,
                         modifier = Modifier.size(20.dp),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
@@ -259,7 +272,7 @@ fun CameraCaptureScreen(
                     Box(modifier = Modifier.weight(1f)) {
                         if (notes.isEmpty()) {
                             Text(
-                                text = "描述做法、分量、食材等...",
+                                text = tr("描述做法、分量、食材等...", "Add notes: preparation, portions, ingredients..."),
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f),
                                 maxLines = 1
@@ -283,7 +296,7 @@ fun CameraCaptureScreen(
                         ) {
                             Icon(
                                 Icons.Filled.Close,
-                                contentDescription = "清除",
+                                contentDescription = tr("清除", "Clear"),
                                 modifier = Modifier.size(16.dp),
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                             )
@@ -306,7 +319,10 @@ fun CameraCaptureScreen(
                             ) {
                                 AsyncImage(
                                     model = uri,
-                                    contentDescription = "已选图片 ${index + 1}，点击裁剪",
+                                    contentDescription = tr(
+                                        "已选图片 ${index + 1}，点击裁剪",
+                                        "Photo ${index + 1}, tap to crop"
+                                    ),
                                     contentScale = ContentScale.Crop,
                                     modifier = Modifier
                                         .fillMaxSize()
@@ -325,7 +341,7 @@ fun CameraCaptureScreen(
                                 ) {
                                     Icon(
                                         Icons.Filled.Close,
-                                        contentDescription = "移除",
+                                        contentDescription = tr("移除", "Remove"),
                                         tint = MaterialTheme.colorScheme.error
                                     )
                                 }
@@ -349,8 +365,8 @@ fun CameraCaptureScreen(
                                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Icon(Icons.Filled.Check, contentDescription = "完成")
-                                Text("完成 (${selectedUris.size})", fontWeight = FontWeight.Bold)
+                                Icon(Icons.Filled.Check, contentDescription = tr("完成", "Done"))
+                                Text(tr("完成 (${selectedUris.size})", "Done (${selectedUris.size})"), fontWeight = FontWeight.Bold)
                             }
                         }
                     }
@@ -358,7 +374,11 @@ fun CameraCaptureScreen(
                     FloatingActionButton(
                         onClick = {
                             if (selectedUris.size >= maxImages) {
-                                errorMessage = "最多只能选择 $maxImages 张图片"
+                                errorMessage = LocaleHelper.tr(
+                                    context,
+                                    "最多只能选择 $maxImages 张图片",
+                                    "Maximum $maxImages photos allowed"
+                                )
                             } else {
                                 galleryLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
                             }
@@ -368,7 +388,7 @@ fun CameraCaptureScreen(
                     ) {
                         Icon(
                             Icons.Filled.PhotoLibrary,
-                            contentDescription = "从相册选择",
+                            contentDescription = tr("从相册选择", "Choose from gallery"),
                             modifier = Modifier.size(24.dp)
                         )
                     }
@@ -380,7 +400,11 @@ fun CameraCaptureScreen(
                                 return@LargeFloatingActionButton
                             }
                             if (selectedUris.size >= maxImages) {
-                                errorMessage = "最多只能选择 $maxImages 张图片"
+                                errorMessage = LocaleHelper.tr(
+                                    context,
+                                    "最多只能选择 $maxImages 张图片",
+                                    "Maximum $maxImages photos allowed"
+                                )
                                 return@LargeFloatingActionButton
                             }
                             val photoFile = File(context.cacheDir, "food_${System.currentTimeMillis()}.jpg")
@@ -394,7 +418,11 @@ fun CameraCaptureScreen(
                                     }
 
                                     override fun onError(exception: ImageCaptureException) {
-                                        errorMessage = "拍照失败: ${exception.message}"
+                                        errorMessage = LocaleHelper.tr(
+                                            context,
+                                            "拍照失败: ${exception.message}",
+                                            "Capture failed: ${exception.message}"
+                                        )
                                     }
                                 }
                             )
@@ -404,7 +432,7 @@ fun CameraCaptureScreen(
                     ) {
                         Icon(
                             Icons.Filled.CameraAlt,
-                            contentDescription = "拍照",
+                            contentDescription = tr("拍照", "Capture"),
                             modifier = Modifier.size(36.dp)
                         )
                     }
