@@ -1,5 +1,6 @@
 package com.example.nutritracker
 
+import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -16,6 +17,8 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -24,6 +27,7 @@ import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.*
 import androidx.navigation.navArgument
+import com.example.nutritracker.data.entity.IntakeType
 import com.example.nutritracker.feature.activity.AddActivityScreen
 import com.example.nutritracker.feature.analytics.AnalyticsScreen
 import com.example.nutritracker.feature.camera.CameraCaptureScreen
@@ -40,6 +44,10 @@ import com.example.nutritracker.feature.sources.SourcesScreen
 import com.example.nutritracker.navigation.Screen
 import com.example.nutritracker.navigation.bottomNavItems
 import com.example.nutritracker.ui.theme.*
+import com.example.nutritracker.util.LocalAppLanguage
+import com.example.nutritracker.util.LocalIsChinese
+import com.example.nutritracker.util.LocaleHelper
+import com.example.nutritracker.widget.NutriTrackerWidgetUpdater
 import com.google.gson.Gson
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
@@ -50,6 +58,10 @@ class MainActivity : ComponentActivity() {
 
     private var pendingCameraLaunch = mutableStateOf(false)
 
+    override fun attachBaseContext(newBase: Context) {
+        super.attachBaseContext(LocaleHelper.wrapBaseContext(newBase))
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -57,17 +69,35 @@ class MainActivity : ComponentActivity() {
         setContent {
             val rootVm: RootViewModel = hiltViewModel()
             val themeMode by rootVm.themeMode.collectAsStateWithLifecycle()
+            val appLanguage by rootVm.appLanguage.collectAsStateWithLifecycle()
             val dynamicColor by rootVm.dynamicColorEnabled.collectAsStateWithLifecycle()
 
-            NutriTrackerTheme(
-                themeMode = themeMode,
-                dynamicColor = dynamicColor
+            val isZh = LocaleHelper.isChinese(appLanguage)
+            val localizedCtx = remember(appLanguage, baseContext.resources.configuration) {
+                LocaleHelper.applyDefaultLocale(appLanguage)
+                LocaleHelper.localizedContext(baseContext, appLanguage)
+            }
+            LaunchedEffect(appLanguage) {
+                LocaleHelper.persistSync(applicationContext, appLanguage)
+                NutriTrackerWidgetUpdater.enqueueUpdate(localizedCtx)
+            }
+
+            CompositionLocalProvider(
+                LocalContext provides localizedCtx,
+                LocalConfiguration provides localizedCtx.resources.configuration,
+                LocalIsChinese provides isZh,
+                LocalAppLanguage provides appLanguage
             ) {
-                NutriTrackerNav(
-                    rootVm = rootVm,
-                    openCameraSignal = pendingCameraLaunch.value,
-                    onConsumeCameraSignal = { pendingCameraLaunch.value = false }
-                )
+                NutriTrackerTheme(
+                    themeMode = themeMode,
+                    dynamicColor = dynamicColor
+                ) {
+                    NutriTrackerNav(
+                        rootVm = rootVm,
+                        openCameraSignal = pendingCameraLaunch.value,
+                        onConsumeCameraSignal = { pendingCameraLaunch.value = false }
+                    )
+                }
             }
         }
     }
@@ -112,7 +142,7 @@ fun NutriTrackerNav(
         if (openCameraSignal && onboardingDone == true) {
             val logicalDay = rootVm.currentLogicalDay()
             onConsumeCameraSignal()
-            rootNav.navigate(Screen.CameraCapture.createRoute(0, logicalDay.toEpochDay()))
+            rootNav.navigate(Screen.CameraCapture.createRoute(IntakeType.suggestForTime().ordinal, logicalDay.toEpochDay()))
         }
     }
 
@@ -252,13 +282,14 @@ fun MainScaffold(rootNav: NavHostController) {
                 tonalElevation = 0.dp
             ) {
                 bottomNavItems.forEach { tab ->
+                    val label = tab.label(LocalIsChinese.current)
                     NavigationBarItem(
                         icon = {
-                            Icon(tab.icon, contentDescription = tab.label, modifier = Modifier.size(24.dp))
+                            Icon(tab.icon, contentDescription = label, modifier = Modifier.size(24.dp))
                         },
                         label = {
                             Text(
-                                text = tab.label,
+                                text = label,
                                 style = MaterialTheme.typography.labelSmall,
                                 fontWeight = FontWeight.Medium,
                                 maxLines = 1

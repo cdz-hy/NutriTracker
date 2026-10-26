@@ -52,15 +52,18 @@ sealed class Screen(val route: String) {
 }
 
 data class BottomNavItem(
-    val label: String,
+    val labelZh: String,
+    val labelEn: String,
     val icon: ImageVector,
     val route: String
-)
+) {
+    fun label(isZh: Boolean): String = if (isZh) labelZh else labelEn
+}
 
 val bottomNavItems = listOf(
-    BottomNavItem("首页", Icons.Filled.Home, Screen.Home.route),
-    BottomNavItem("日记", Icons.Filled.CalendarMonth, Screen.Diary.route),
-    BottomNavItem("统计", Icons.Filled.BarChart, Screen.Analytics.route),
-    BottomNavItem("我的", Icons.Filled.Person, Screen.Profile.route),
-    BottomNavItem("设置", Icons.Filled.Settings, Screen.Settings.route)
+    BottomNavItem("首页", "Home", Icons.Filled.Home, Screen.Home.route),
+    BottomNavItem("日记", "Diary", Icons.Filled.CalendarMonth, Screen.Diary.route),
+    BottomNavItem("统计", "Stats", Icons.Filled.BarChart, Screen.Analytics.route),
+    BottomNavItem("我的", "Profile", Icons.Filled.Person, Screen.Profile.route),
+    BottomNavItem("设置", "Settings", Icons.Filled.Settings, Screen.Settings.route)
 )
