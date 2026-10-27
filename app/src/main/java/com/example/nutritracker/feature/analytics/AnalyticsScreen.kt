@@ -3,21 +3,28 @@ package com.example.nutritracker.feature.analytics
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.HelpOutline
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.repeatOnLifecycle
 import com.example.nutritracker.ui.components.*
 import com.example.nutritracker.ui.theme.*
 import com.example.nutritracker.util.DriReference
+import com.example.nutritracker.util.LocalIsChinese
 import com.example.nutritracker.util.MicronutrientKey
 import com.example.nutritracker.util.UnitCalc
+import com.example.nutritracker.util.tr
 import kotlin.math.roundToInt
 
 @Composable
@@ -27,6 +34,13 @@ fun AnalyticsScreen(
     vm: AnalyticsViewModel = hiltViewModel()
 ) {
     val state by vm.state.collectAsStateWithLifecycle()
+    val isZh = LocalIsChinese.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+    LaunchedEffect(lifecycleOwner) {
+        lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+            vm.onResumed()
+        }
+    }
 
     LazyColumn(
         modifier = Modifier
@@ -40,14 +54,16 @@ fun AnalyticsScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(vertical = 8.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "趋势分析",
+                    text = tr("趋势分析", "Analytics"),
                     style = MaterialTheme.typography.headlineMedium,
                     fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    modifier = Modifier.weight(1f)
                 )
                 SingleChoiceSegmentedButtonRow {
                     AnalyticsRange.entries.forEachIndexed { idx, r ->
@@ -56,14 +72,19 @@ fun AnalyticsScreen(
                             onClick = { vm.selectRange(r) },
                             shape = SegmentedButtonDefaults.itemShape(index = idx, count = AnalyticsRange.entries.size)
                         ) {
-                            Text(r.label, style = MaterialTheme.typography.labelMedium)
+                            Text(
+                                text = r.displayLabel(isZh),
+                                style = MaterialTheme.typography.labelMedium,
+                                maxLines = 1,
+                                softWrap = false
+                            )
                         }
                     }
                 }
             }
         }
 
-        // 连续打卡与周期概览
+        // Streak & Period Summary
         item(key = "summary_metrics") {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -71,22 +92,29 @@ fun AnalyticsScreen(
             ) {
                 SummaryStatCard(
                     icon = Icons.Filled.LocalFireDepartment,
-                    title = "连续打卡",
-                    value = "${state.streakDays} 天",
-                    subtitle = "周期已记 ${state.loggedDaysCount}/${state.range.days} 天",
+                    title = tr("连续打卡", "Log Streak"),
+                    value = if (isZh) "${state.streakDays} 天" else "${state.streakDays}d",
+                    subtitle = if (isZh) {
+                        "周期已记 ${state.loggedDaysCount}/${state.range.days} 天"
+                    } else {
+                        "Logged ${state.loggedDaysCount}/${state.range.days} days"
+                    },
                     modifier = Modifier.weight(1f)
                 )
                 SummaryStatCard(
                     icon = Icons.Filled.Restaurant,
-                    title = "日均摄入",
+                    title = tr("日均摄入", "Daily Avg"),
                     value = UnitCalc.formatEnergy(state.avgIntakeKcal, state.useKj),
-                    subtitle = "日均目标 ${UnitCalc.formatEnergy(state.avgGoalKcal, state.useKj)}",
+                    subtitle = tr(
+                        "日均目标 ${UnitCalc.formatEnergy(state.avgGoalKcal, state.useKj)}",
+                        "Avg goal ${UnitCalc.formatEnergy(state.avgGoalKcal, state.useKj)}"
+                    ),
                     modifier = Modifier.weight(1f)
                 )
             }
         }
 
-        // 热量柱状图
+        // Calorie Bar Chart
         item(key = "calorie_bar_chart") {
             ElevatedCard(
                 modifier = Modifier.fillMaxWidth(),
@@ -99,7 +127,7 @@ fun AnalyticsScreen(
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     Text(
-                        text = "${state.range.label}热量收支",
+                        text = state.range.chartTitle(isZh),
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold
                     )
@@ -111,7 +139,7 @@ fun AnalyticsScreen(
             }
         }
 
-        // 宏量供能比环形图
+        // Macro Donut Chart
         item(key = "macro_donut") {
             ElevatedCard(
                 modifier = Modifier.fillMaxWidth(),
@@ -124,7 +152,7 @@ fun AnalyticsScreen(
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     Text(
-                        text = "平均日均宏量供能比",
+                        text = tr("日均宏量供能比", "Avg Macro Breakdown"),
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold
                     )
@@ -137,7 +165,7 @@ fun AnalyticsScreen(
             }
         }
 
-        // 体重趋势折线图
+        // Weight Trend Chart
         item(key = "weight_chart") {
             ElevatedCard(
                 modifier = Modifier.fillMaxWidth(),
@@ -155,18 +183,21 @@ fun AnalyticsScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = "体重变化趋势 (近90天)",
+                            text = tr("体重变化趋势 (近90天)", "Weight Trend (90 Days)"),
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold
                         )
                         TextButton(onClick = onNavigateToWeightHistory) {
-                            Text("管理记录")
+                            Text(tr("管理记录", "Manage"))
                         }
                     }
 
                     if (state.weightPoints.isEmpty()) {
                         Text(
-                            text = "暂无体重日志，点击“管理记录”补充体重历史",
+                            text = tr(
+                                "暂无体重日志，点击“管理记录”补充体重历史",
+                                "No weight logs yet — tap Manage to add weight history"
+                            ),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -181,7 +212,7 @@ fun AnalyticsScreen(
             }
         }
 
-        // 周期平均 DRI 微量指标
+        // Period Average DRI Micronutrients
         item(key = "micro_summary") {
             ElevatedCard(
                 modifier = Modifier.fillMaxWidth(),
@@ -199,12 +230,12 @@ fun AnalyticsScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = "日均关键营养素 (DRI)",
+                            text = tr("日均关键营养素 (DRI)", "Daily Avg Nutrients (DRI)"),
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold
                         )
                         IconButton(onClick = onNavigateToSources, modifier = Modifier.size(28.dp)) {
-                            Icon(Icons.Filled.HelpOutline, contentDescription = "科学依据", modifier = Modifier.size(18.dp))
+                            Icon(Icons.AutoMirrored.Filled.HelpOutline, contentDescription = tr("科学依据", "Scientific sources"), modifier = Modifier.size(18.dp))
                         }
                     }
                     val micros = state.periodAvgMicros
@@ -221,7 +252,7 @@ fun AnalyticsScreen(
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text(key.label, style = MaterialTheme.typography.bodyMedium)
+                            Text(key.displayLabel(isZh), style = MaterialTheme.typography.bodyMedium)
                             Text(
                                 text = "${UnitCalc.formatDecimal(avgVal, if (avgVal >= 10) 0 else 1)} / ${ref.roundToInt()} ${key.unit}",
                                 style = MaterialTheme.typography.bodySmall,

@@ -19,9 +19,15 @@ import kotlinx.coroutines.flow.*
 import java.time.LocalDate
 import javax.inject.Inject
 
-enum class AnalyticsRange(val days: Int, val label: String) {
-    WEEK(7, "近 7 天"),
-    MONTH(30, "近 30 天")
+enum class AnalyticsRange(val days: Int, val label: String, val labelEn: String) {
+    WEEK(7, "近7天", "7 Days"),
+    MONTH(30, "近30天", "30 Days");
+
+    fun displayLabel(isZh: Boolean): String = if (isZh) label else labelEn
+    fun chartTitle(isZh: Boolean): String = if (isZh) "${label}热量收支" else when (this) {
+        WEEK -> "7-Day Calorie Balance"
+        MONTH -> "30-Day Calorie Balance"
+    }
 }
 
 data class AnalyticsUiState(
@@ -58,13 +64,15 @@ class AnalyticsViewModel @Inject constructor(
 ) : ViewModel() {
 
     private val _range = MutableStateFlow(AnalyticsRange.WEEK)
+    private val resumeTick = MutableStateFlow(0L)
 
     val state: StateFlow<AnalyticsUiState> = combine(
         _range,
         settingsRepo.dayBoundaryMinutes,
         settingsRepo.kcalAdjustment,
-        settingsRepo.useKj
-    ) { range, offset, kcalAdj, useKj ->
+        settingsRepo.useKj,
+        resumeTick
+    ) { range, offset, kcalAdj, useKj, _ ->
         Triple(range, offset, kcalAdj to useKj)
     }.flatMapLatest { (range, offset, adjAndKj) ->
         val (kcalAdj, useKj) = adjAndKj
@@ -148,6 +156,10 @@ class AnalyticsViewModel @Inject constructor(
 
     fun selectRange(range: AnalyticsRange) {
         _range.value = range
+    }
+
+    fun onResumed() {
+        resumeTick.value = System.currentTimeMillis()
     }
 
     private fun computeStreak(today: LocalDate, intakesByDay: Map<LocalDate, List<IntakeWithMeal>>): Int {

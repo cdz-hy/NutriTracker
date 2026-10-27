@@ -7,6 +7,9 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.DirectionsBike
+import androidx.compose.material.icons.automirrored.filled.DirectionsRun
+import androidx.compose.material.icons.automirrored.filled.DirectionsWalk
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -19,8 +22,10 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.nutritracker.data.entity.*
 import com.example.nutritracker.ui.theme.*
+import com.example.nutritracker.util.LocalIsChinese
 import com.example.nutritracker.util.MetCalc
 import com.example.nutritracker.util.UnitCalc
+import com.example.nutritracker.util.tr
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -30,6 +35,7 @@ fun AddActivityScreen(
 ) {
     val user by vm.user.collectAsStateWithLifecycle()
     val useKj by vm.useKj.collectAsStateWithLifecycle()
+    val isZh = LocalIsChinese.current
     var selectedActivity by remember { mutableStateOf<PhysicalActivity?>(null) }
     var lastSelectedActivity by remember { mutableStateOf<PhysicalActivity?>(null) }
     var durationStr by remember { mutableStateOf("30") }
@@ -52,7 +58,7 @@ fun AddActivityScreen(
             TopAppBar(
                 title = {
                     Text(
-                        text = "添加活动",
+                        text = tr("添加活动", "Log Activity"),
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface
@@ -62,7 +68,7 @@ fun AddActivityScreen(
                     IconButton(onClick = onBack) {
                         Icon(
                             Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "返回",
+                            contentDescription = tr("返回", "Back"),
                             tint = MaterialTheme.colorScheme.onSurface
                         )
                     }
@@ -71,7 +77,7 @@ fun AddActivityScreen(
                     IconButton(onClick = { showCustomDialog = true }) {
                         Icon(
                             Icons.Filled.Edit,
-                            contentDescription = "自定义活动",
+                            contentDescription = tr("自定义活动", "Custom Activity"),
                             tint = MaterialTheme.colorScheme.primary
                         )
                     }
@@ -93,12 +99,12 @@ fun AddActivityScreen(
                 value = searchQuery,
                 onValueChange = { searchQuery = it },
                 modifier = Modifier.fillMaxWidth(),
-                placeholder = { Text("搜索运动...") },
+                placeholder = { Text(tr("搜索运动...", "Search activities...")) },
                 leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
                 trailingIcon = {
                     if (searchQuery.isNotEmpty()) {
                         IconButton(onClick = { searchQuery = "" }) {
-                            Icon(Icons.Filled.Clear, contentDescription = "清除")
+                            Icon(Icons.Filled.Clear, contentDescription = tr("清除", "Clear"))
                         }
                     }
                 },
@@ -121,7 +127,7 @@ fun AddActivityScreen(
                             onRecord = { kcal ->
                                 val dur = durationStr.toDoubleOrNull() ?: 0.0
                                 if (dur > 0.0 && kcal > 0.0) {
-                                    vm.addActivity(activity.name, activity.mets, dur, kcal, activity.category.displayName)
+                                    vm.addActivity(activity.displayName(isZh), activity.mets, dur, kcal, activity.category.label(isZh))
                                     onBack()
                                 }
                             }
@@ -141,7 +147,7 @@ fun AddActivityScreen(
                     item(key = "category_${category.name}") {
                         StaggeredFadeIn(index = headerIdx) {
                             Text(
-                                text = category.displayName,
+                                text = category.label(isZh),
                                 style = MaterialTheme.typography.titleSmall,
                                 fontWeight = FontWeight.SemiBold,
                                 color = MaterialTheme.colorScheme.primary,
@@ -191,6 +197,7 @@ private fun ActivityDetailCard(
     onCancel: () -> Unit,
     onRecord: (Double) -> Unit
 ) {
+    val isZh = LocalIsChinese.current
     val weight = user?.weightKg ?: 70.0
     val duration = durationStr.toDoubleOrNull() ?: 0.0
     val validDuration = duration > 0.0
@@ -206,14 +213,15 @@ private fun ActivityDetailCard(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Text(
-                text = activity.name,
+                text = activity.displayName(isZh),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onPrimaryContainer
             )
-            if (activity.description.isNotBlank()) {
+            val desc = activity.displayDescription(isZh)
+            if (desc.isNotBlank()) {
                 Text(
-                    text = activity.description,
+                    text = desc,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
                 )
@@ -227,7 +235,7 @@ private fun ActivityDetailCard(
             OutlinedTextField(
                 value = durationStr,
                 onValueChange = onDurationChange,
-                label = { Text("时长 (分钟)") },
+                label = { Text(tr("时长 (分钟)", "Duration (min)")) },
                 isError = durationStr.isNotBlank() && !validDuration,
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
@@ -242,7 +250,10 @@ private fun ActivityDetailCard(
                 )
             )
             Text(
-                text = "预计消耗: ${UnitCalc.formatEnergy(kcal, useKj)}",
+                text = tr(
+                    "预计消耗: ${UnitCalc.formatEnergy(kcal, useKj)}",
+                    "Estimated burn: ${UnitCalc.formatEnergy(kcal, useKj)}"
+                ),
                 style = MaterialTheme.typography.bodyLarge,
                 fontWeight = FontWeight.Medium,
                 color = MaterialTheme.colorScheme.onPrimaryContainer
@@ -254,7 +265,7 @@ private fun ActivityDetailCard(
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.onPrimaryContainer),
                     modifier = Modifier.weight(1f)
                 ) {
-                    Text("取消")
+                    Text(tr("取消", "Cancel"))
                 }
                 Button(
                     onClick = { onRecord(kcal) },
@@ -265,7 +276,7 @@ private fun ActivityDetailCard(
                     ),
                     modifier = Modifier.weight(1f)
                 ) {
-                    Text("记录")
+                    Text(tr("记录", "Log"))
                 }
             }
         }
@@ -278,6 +289,7 @@ private fun ActivityListItem(
     isSelected: Boolean,
     onClick: () -> Unit
 ) {
+    val isZh = LocalIsChinese.current
     ElevatedCard(
         modifier = Modifier
             .fillMaxWidth()
@@ -297,11 +309,11 @@ private fun ActivityListItem(
         ) {
             Icon(
                 when (activity.category) {
-                    ActivityCategory.BICYCLING -> Icons.Filled.DirectionsBike
+                    ActivityCategory.BICYCLING -> Icons.AutoMirrored.Filled.DirectionsBike
                     ActivityCategory.CONDITIONING -> Icons.Filled.FitnessCenter
-                    ActivityCategory.RUNNING -> Icons.Filled.DirectionsRun
+                    ActivityCategory.RUNNING -> Icons.AutoMirrored.Filled.DirectionsRun
                     ActivityCategory.SPORT -> Icons.Filled.Sports
-                    ActivityCategory.WALKING -> Icons.Filled.DirectionsWalk
+                    ActivityCategory.WALKING -> Icons.AutoMirrored.Filled.DirectionsWalk
                     ActivityCategory.WATER -> Icons.Filled.Water
                     ActivityCategory.OTHER -> Icons.Filled.SelfImprovement
                 },
@@ -311,14 +323,15 @@ private fun ActivityListItem(
             )
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = activity.name,
+                    text = activity.displayName(isZh),
                     style = MaterialTheme.typography.bodyLarge,
                     fontWeight = FontWeight.Medium,
                     color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
                 )
-                if (activity.description.isNotBlank()) {
+                val desc = activity.displayDescription(isZh)
+                if (desc.isNotBlank()) {
                     Text(
-                        text = activity.description,
+                        text = desc,
                         style = MaterialTheme.typography.bodySmall,
                         color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
                         else MaterialTheme.colorScheme.onSurfaceVariant
@@ -353,7 +366,7 @@ private fun CustomActivityDialog(
         onDismissRequest = onDismiss,
         title = {
             Text(
-                text = "自定义活动",
+                text = tr("自定义活动", "Custom Activity"),
                 style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.Bold
             )
@@ -361,21 +374,21 @@ private fun CustomActivityDialog(
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(
-                    text = "手动输入活动消耗的能量与时长",
+                    text = tr("手动输入活动消耗的能量与时长", "Manually enter calories burned and duration"),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 OutlinedTextField(
                     value = name,
                     onValueChange = { name = it },
-                    label = { Text("活动名称") },
+                    label = { Text(tr("活动名称", "Activity name")) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
                 OutlinedTextField(
                     value = energyStr,
                     onValueChange = { energyStr = it },
-                    label = { Text("消耗 (${UnitCalc.energyUnitLabel(useKj)})") },
+                    label = { Text(tr("消耗 (${UnitCalc.energyUnitLabel(useKj)})", "Burned (${UnitCalc.energyUnitLabel(useKj)})")) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
@@ -383,7 +396,7 @@ private fun CustomActivityDialog(
                 OutlinedTextField(
                     value = durationStr,
                     onValueChange = { durationStr = it },
-                    label = { Text("时长 (分钟)") },
+                    label = { Text(tr("时长 (分钟)", "Duration (min)")) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
@@ -398,11 +411,11 @@ private fun CustomActivityDialog(
                 },
                 enabled = isValid
             ) {
-                Text("添加")
+                Text(tr("添加", "Add"))
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("取消") }
+            TextButton(onClick = onDismiss) { Text(tr("取消", "Cancel")) }
         },
         containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
     )
