@@ -10,6 +10,8 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.DirectionsRun
+import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -35,6 +37,7 @@ import com.example.nutritracker.feature.camera.TaskStatus
 import com.example.nutritracker.ui.components.*
 import com.example.nutritracker.ui.theme.*
 import com.example.nutritracker.util.UnitCalc
+import com.example.nutritracker.util.tr
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import java.io.File
@@ -153,23 +156,23 @@ fun HomeScreen(
                     ) {
                         AssistChip(
                             onClick = { showTextAiDialog = true },
-                            label = { Text("AI 一句话记餐") },
+                            label = { Text(tr("AI 一句话记餐", "AI Text Log")) },
                             leadingIcon = {
                                 Icon(Icons.Filled.AutoAwesome, null, modifier = Modifier.size(18.dp))
                             }
                         )
                         AssistChip(
-                            onClick = { onNavigateToCamera(IntakeType.LUNCH.ordinal, logicalEpoch) },
-                            label = { Text("拍照识图") },
+                            onClick = { onNavigateToCamera(IntakeType.suggestForTime().ordinal, logicalEpoch) },
+                            label = { Text(tr("拍照识图", "Photo Scan")) },
                             leadingIcon = {
                                 Icon(Icons.Filled.CameraAlt, null, modifier = Modifier.size(18.dp))
                             }
                         )
                         AssistChip(
-                            onClick = { onNavigateToLibrary(IntakeType.BREAKFAST.ordinal, logicalEpoch) },
-                            label = { Text("食物库与食谱") },
+                            onClick = { onNavigateToLibrary(IntakeType.suggestForTime().ordinal, logicalEpoch) },
+                            label = { Text(tr("食物库", "Food Library")) },
                             leadingIcon = {
-                                Icon(Icons.Filled.MenuBook, null, modifier = Modifier.size(18.dp))
+                                Icon(Icons.AutoMirrored.Filled.MenuBook, null, modifier = Modifier.size(18.dp))
                             }
                         )
                     }
@@ -179,7 +182,7 @@ fun HomeScreen(
                 item(key = "calorie_overview") {
                     StaggeredFadeIn(index = 0) {
                         CalorieOverviewCard(
-                            title = "今日热量",
+                            title = tr("今日热量", "Today's Calories"),
                             goal = state.calorieGoal,
                             supplied = state.caloriesSupplied,
                             burned = state.caloriesBurned,
@@ -312,7 +315,7 @@ fun HomeScreen(
 
     if (showTextAiDialog) {
         QuickAiTextLogDialog(
-            initialType = IntakeType.LUNCH,
+            initialType = IntakeType.suggestForTime(),
             onDismiss = { showTextAiDialog = false },
             onSubmit = { desc, type ->
                 vm.analyzeTextMeal(desc, type)
@@ -397,7 +400,7 @@ private fun MealSectionHeader(
             IconButton(onClick = onCameraClick, modifier = Modifier.size(34.dp)) {
                 Icon(
                     Icons.Filled.CameraAlt,
-                    contentDescription = "拍照识别",
+                    contentDescription = tr("拍照识别", "Photo scan"),
                     tint = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.size(18.dp)
                 )
@@ -411,7 +414,7 @@ private fun MealSectionHeader(
                     contentColor = MaterialTheme.colorScheme.onPrimaryContainer
                 )
             ) {
-                Icon(Icons.Filled.Add, contentDescription = "添加食物", modifier = Modifier.size(18.dp))
+                Icon(Icons.Filled.Add, contentDescription = tr("添加食物", "Add food"), modifier = Modifier.size(18.dp))
             }
         }
     }
@@ -439,14 +442,14 @@ private fun ActivitySectionHeader(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(
-                Icons.Filled.DirectionsRun,
+                Icons.AutoMirrored.Filled.DirectionsRun,
                 contentDescription = null,
                 modifier = Modifier.size(Dimens.IconSizeMedium),
                 tint = burnColor
             )
             Spacer(Modifier.width(12.dp))
             Text(
-                text = "体育活动",
+                text = tr("体育活动", "Activities"),
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.onSurface,
@@ -469,7 +472,7 @@ private fun ActivitySectionHeader(
                     contentColor = MaterialTheme.colorScheme.onPrimaryContainer
                 )
             ) {
-                Icon(Icons.Filled.Add, contentDescription = "添加活动", modifier = Modifier.size(18.dp))
+                Icon(Icons.Filled.Add, contentDescription = tr("添加活动", "Add activity"), modifier = Modifier.size(18.dp))
             }
         }
     }
@@ -544,7 +547,7 @@ private fun MealIntakeItem(
             IconButton(onClick = onEdit, modifier = Modifier.size(32.dp)) {
                 Icon(
                     Icons.Filled.Edit,
-                    contentDescription = "编辑",
+                    contentDescription = tr("编辑", "Edit"),
                     modifier = Modifier.size(14.dp),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -552,7 +555,7 @@ private fun MealIntakeItem(
             IconButton(onClick = { showDeleteConfirm = true }, modifier = Modifier.size(32.dp)) {
                 Icon(
                     Icons.Filled.Close,
-                    contentDescription = "删除",
+                    contentDescription = tr("删除", "Delete"),
                     modifier = Modifier.size(16.dp),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -563,16 +566,18 @@ private fun MealIntakeItem(
     if (showDeleteConfirm) {
         AlertDialog(
             onDismissRequest = { showDeleteConfirm = false },
-            title = { Text("确认删除") },
-            text = { Text("确定要删除 \"${meal.name}\" 吗？") },
+            title = { Text(tr("确认删除", "Delete Entry")) },
+            text = {
+                Text(tr("确定要删除 \"${meal.name}\" 吗？", "Delete \"${meal.name}\"?"))
+            },
             confirmButton = {
                 TextButton(
                     onClick = { onDelete(); showDeleteConfirm = false },
                     colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
-                ) { Text("删除") }
+                ) { Text(tr("删除", "Delete")) }
             },
             dismissButton = {
-                TextButton(onClick = { showDeleteConfirm = false }) { Text("取消") }
+                TextButton(onClick = { showDeleteConfirm = false }) { Text(tr("取消", "Cancel")) }
             }
         )
     }

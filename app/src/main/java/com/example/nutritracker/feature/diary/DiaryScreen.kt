@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.DirectionsRun
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.*
@@ -20,14 +21,20 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.repeatOnLifecycle
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import com.example.nutritracker.data.dao.IntakeWithMeal
 import com.example.nutritracker.data.entity.IntakeType
 import com.example.nutritracker.ui.components.*
 import com.example.nutritracker.ui.theme.*
+import com.example.nutritracker.util.LocalIsChinese
+import com.example.nutritracker.util.LocaleHelper
 import com.example.nutritracker.util.UnitCalc
+import com.example.nutritracker.util.tr
 import java.io.File
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
@@ -48,6 +55,13 @@ fun DiaryScreen(
     var showDatePicker by remember { mutableStateOf(false) }
     var showWaterDetail by remember { mutableStateOf(false) }
 
+    val lifecycleOwner = LocalLifecycleOwner.current
+    LaunchedEffect(lifecycleOwner) {
+        lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.RESUMED) {
+            vm.onResumed()
+        }
+    }
+
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
@@ -64,14 +78,14 @@ fun DiaryScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "日记",
+                    text = tr("日记", "Diary"),
                     style = MaterialTheme.typography.headlineMedium,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface
                 )
                 if (!state.isLogicalToday) {
-                    TextButton(onClick = { vm.selectDate(LocalDate.now()) }) {
-                        Text("回到今天")
+                    TextButton(onClick = { vm.selectLogicalToday() }) {
+                        Text(tr("回到今天", "Today"))
                     }
                 }
             }
@@ -79,6 +93,7 @@ fun DiaryScreen(
 
         // 日期选择器
         item(key = "date_selector") {
+            val isZh = LocalIsChinese.current
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
@@ -95,7 +110,7 @@ fun DiaryScreen(
                     IconButton(onClick = { vm.selectDate(selectedDate.minusDays(1)) }) {
                         Icon(
                             Icons.AutoMirrored.Filled.KeyboardArrowLeft,
-                            contentDescription = "前一天",
+                            contentDescription = tr("前一天", "Previous day"),
                             tint = MaterialTheme.colorScheme.onSurface
                         )
                     }
@@ -127,12 +142,19 @@ fun DiaryScreen(
                                 .padding(horizontal = 16.dp, vertical = 4.dp)
                         ) {
                             Text(
-                                text = date.dayOfWeek.getDisplayName(TextStyle.FULL, Locale.CHINESE),
+                                text = date.dayOfWeek.getDisplayName(
+                                    TextStyle.FULL,
+                                    if (isZh) Locale.SIMPLIFIED_CHINESE else Locale.ENGLISH
+                                ),
                                 style = MaterialTheme.typography.labelMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                             Text(
-                                text = date.format(DateTimeFormatter.ofPattern("yyyy年MM月dd日")),
+                                text = if (isZh) {
+                                    date.format(DateTimeFormatter.ofPattern("yyyy年MM月dd日"))
+                                } else {
+                                    date.format(DateTimeFormatter.ofPattern("MMM d, yyyy", Locale.ENGLISH))
+                                },
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.SemiBold,
                                 color = MaterialTheme.colorScheme.onSurface
@@ -143,7 +165,7 @@ fun DiaryScreen(
                     IconButton(onClick = { vm.selectDate(selectedDate.plusDays(1)) }) {
                         Icon(
                             Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                            contentDescription = "后一天",
+                            contentDescription = tr("后一天", "Next day"),
                             tint = MaterialTheme.colorScheme.onSurface
                         )
                     }
@@ -163,13 +185,13 @@ fun DiaryScreen(
                 }
             }
         } else {
-            val overviewTitle = if (state.isLogicalToday) {
-                "今日热量"
-            } else {
-                selectedDate.format(DateTimeFormatter.ofPattern("MM月dd日热量"))
-            }
-
             item(key = "calorie_overview") {
+                val isZh = LocalIsChinese.current
+                val overviewTitle = if (state.isLogicalToday) {
+                    tr("今日热量", "Today's Calories")
+                } else {
+                    LocaleHelper.formatDayCaloriesTitle(selectedDate, isZh)
+                }
                 StaggeredFadeIn(index = 0) {
                     CalorieOverviewCard(
                         title = overviewTitle,
@@ -350,7 +372,7 @@ private fun DiaryMealHeader(
         IconButton(onClick = onAddClick, modifier = Modifier.size(28.dp)) {
             Icon(
                 Icons.Filled.Add,
-                contentDescription = "添加",
+                contentDescription = tr("添加", "Add"),
                 modifier = Modifier.size(18.dp),
                 tint = MaterialTheme.colorScheme.primary
             )
@@ -373,13 +395,13 @@ private fun DiaryActivityHeader(
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         Icon(
-            Icons.Filled.DirectionsRun,
+            Icons.AutoMirrored.Filled.DirectionsRun,
             contentDescription = null,
             modifier = Modifier.size(Dimens.IconSizeMedium),
             tint = burnColor
         )
         Text(
-            text = "活动",
+            text = tr("活动", "Activities"),
             style = MaterialTheme.typography.titleSmall,
             fontWeight = FontWeight.SemiBold,
             color = MaterialTheme.colorScheme.onSurface
@@ -394,7 +416,7 @@ private fun DiaryActivityHeader(
         IconButton(onClick = onAddClick, modifier = Modifier.size(28.dp)) {
             Icon(
                 Icons.Filled.Add,
-                contentDescription = "添加活动",
+                contentDescription = tr("添加活动", "Add activity"),
                 modifier = Modifier.size(18.dp),
                 tint = burnColor
             )
@@ -467,7 +489,7 @@ private fun DiaryIntakeCard(
                     IconButton(onClick = onEdit, modifier = Modifier.size(32.dp)) {
                         Icon(
                             Icons.Filled.Edit,
-                            contentDescription = "编辑",
+                            contentDescription = tr("编辑", "Edit"),
                             modifier = Modifier.size(18.dp),
                             tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -475,7 +497,7 @@ private fun DiaryIntakeCard(
                     IconButton(onClick = { showDeleteConfirm = true }, modifier = Modifier.size(32.dp)) {
                         Icon(
                             Icons.Filled.Delete,
-                            contentDescription = "删除",
+                            contentDescription = tr("删除", "Delete"),
                             modifier = Modifier.size(18.dp),
                             tint = MaterialTheme.colorScheme.error
                         )
@@ -489,16 +511,18 @@ private fun DiaryIntakeCard(
     if (showDeleteConfirm) {
         AlertDialog(
             onDismissRequest = { showDeleteConfirm = false },
-            title = { Text("删除这条记录？") },
-            text = { Text("将删除 \"${meal.name}\" 的摄入记录") },
+            title = { Text(tr("删除这条记录？", "Delete Entry?")) },
+            text = {
+                Text(tr("将删除 \"${meal.name}\" 的摄入记录", "Remove log entry for \"${meal.name}\"?"))
+            },
             confirmButton = {
                 TextButton(
                     onClick = { showDeleteConfirm = false; onDelete() },
                     colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
-                ) { Text("删除") }
+                ) { Text(tr("删除", "Delete")) }
             },
             dismissButton = {
-                TextButton(onClick = { showDeleteConfirm = false }) { Text("取消") }
+                TextButton(onClick = { showDeleteConfirm = false }) { Text(tr("取消", "Cancel")) }
             }
         )
     }

@@ -64,6 +64,7 @@ class DiaryViewModel @Inject constructor(
         LocalDate.ofEpochDay(savedStateHandle["diary_date_epoch"] ?: LocalDate.now().toEpochDay())
     )
     val selectedDate: StateFlow<LocalDate> = _selectedDate.asStateFlow()
+    private val resumeTick = MutableStateFlow(0L)
 
     private data class DiaryPrefs(
         val offset: Int,
@@ -103,7 +104,7 @@ class DiaryViewModel @Inject constructor(
         )
     }
 
-    val state: StateFlow<DiaryState> = combine(_selectedDate, prefsFlow) { date, prefs ->
+    val state: StateFlow<DiaryState> = combine(_selectedDate, prefsFlow, resumeTick) { date, prefs, _ ->
         date to prefs
     }.flatMapLatest { (date, prefs) ->
         val offset = prefs.offset
@@ -207,6 +208,17 @@ class DiaryViewModel @Inject constructor(
     fun selectDate(date: LocalDate) {
         _selectedDate.value = date
         savedStateHandle["diary_date_epoch"] = date.toEpochDay()
+    }
+
+    fun selectLogicalToday() {
+        viewModelScope.launch {
+            val offset = settingsRepo.dayBoundaryMinutes.first()
+            selectDate(dayBoundaryCalc.currentLogicalDay(offset))
+        }
+    }
+
+    fun onResumed() {
+        resumeTick.value = System.currentTimeMillis()
     }
 
     fun deleteIntake(intake: Intake) {
