@@ -15,6 +15,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -42,7 +43,10 @@ import com.example.nutritracker.feature.camera.NutritionResult
 import com.example.nutritracker.feature.camera.TaskStatus
 import com.example.nutritracker.ui.components.*
 import com.example.nutritracker.ui.theme.*
+import com.example.nutritracker.util.LocalIsChinese
+import com.example.nutritracker.util.LocaleHelper
 import com.example.nutritracker.util.UnitCalc
+import com.example.nutritracker.util.tr
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import java.io.File
@@ -148,7 +152,7 @@ fun AddMealScreen(
                             fontWeight = FontWeight.Bold
                         )
                         Text(
-                            text = targetDate.format(DateTimeFormatter.ofPattern("yyyy年MM月dd日")),
+                            text = LocaleHelper.formatFullDate(targetDate, LocalIsChinese.current),
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -156,14 +160,14 @@ fun AddMealScreen(
                 },
                 navigationIcon = {
                     IconButton(onClick = onMealSaved) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, tr("返回", "Back"))
                     }
                 },
                 actions = {
                     TextButton(onClick = { onNavigateToLibrary(intakeTypeId, dateEpochDay) }) {
-                        Icon(Icons.Filled.MenuBook, null, modifier = Modifier.size(18.dp))
+                        Icon(Icons.AutoMirrored.Filled.MenuBook, null, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(4.dp))
-                        Text("食物库")
+                        Text(tr("食物库", "Library"))
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface)
@@ -176,7 +180,7 @@ fun AddMealScreen(
                     .fillMaxSize()
                     .padding(padding)
             ) {
-                // 三种快速录入方式
+                // Three quick log modes
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -190,7 +194,7 @@ fun AddMealScreen(
                     ) {
                         Icon(Icons.Filled.CameraAlt, null, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(4.dp))
-                        Text("拍照识图", maxLines = 1)
+                        Text(tr("拍照识图", "Photo"), maxLines = 1)
                     }
                     FilledTonalButton(
                         onClick = { showTextAi = true },
@@ -203,7 +207,7 @@ fun AddMealScreen(
                     ) {
                         Icon(Icons.Filled.AutoAwesome, null, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(4.dp))
-                        Text("AI文字", maxLines = 1)
+                        Text(tr("AI文字", "AI Text"), maxLines = 1)
                     }
                     FilledTonalButton(
                         onClick = { showManualAdd = true },
@@ -216,20 +220,20 @@ fun AddMealScreen(
                     ) {
                         Icon(Icons.Filled.Edit, null, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(4.dp))
-                        Text("手动/快记", maxLines = 1)
+                        Text(tr("手动/快记", "Manual"), maxLines = 1)
                     }
                 }
 
-                // 本地食物库 & 食谱搜索框
+                // Local food library & recipe search bar
                 OutlinedTextField(
                     value = searchQuery,
                     onValueChange = { vm.setSearchQuery(it) },
-                    placeholder = { Text("搜索历史食物或自制食谱...") },
+                    placeholder = { Text(tr("搜索历史食物或自制食谱...", "Search saved foods or recipes...")) },
                     leadingIcon = { Icon(Icons.Filled.Search, null) },
                     trailingIcon = {
                         if (searchQuery.isNotEmpty()) {
                             IconButton(onClick = { vm.setSearchQuery("") }) {
-                                Icon(Icons.Filled.Clear, "清除")
+                                Icon(Icons.Filled.Clear, tr("清除", "Clear"))
                             }
                         }
                     },
@@ -240,7 +244,7 @@ fun AddMealScreen(
                         .padding(horizontal = Dimens.ContentPadding, vertical = 4.dp)
                 )
 
-                // 搜索结果或近期复用/食谱
+                // Search results or recent/recipes
                 if (searchQuery.isNotBlank()) {
                     LazyColumn(
                         modifier = Modifier.weight(1f),
@@ -249,7 +253,7 @@ fun AddMealScreen(
                     ) {
                         if (recipes.isNotEmpty()) {
                             item {
-                                Text("匹配食谱", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+                                Text(tr("匹配食谱", "Matching Recipes"), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
                             }
                             items(recipes, key = { "rec_${it.recipe.id}" }) { r ->
                                 RecipeQuickCard(r, useKj) { quickLogRecipeTarget = r }
@@ -257,7 +261,7 @@ fun AddMealScreen(
                         }
                         if (librarySearchResults.isNotEmpty()) {
                             item {
-                                Text("食物库结果", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+                                Text(tr("食物库结果", "Food Library"), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
                             }
                             items(librarySearchResults, key = { "lib_${it.id}" }) { m ->
                                 LibraryQuickCard(m, useKj) { quickLogMealTarget = m }
@@ -266,7 +270,10 @@ fun AddMealScreen(
                         if (recipes.isEmpty() && librarySearchResults.isEmpty()) {
                             item {
                                 Text(
-                                    text = "未找到匹配的食物或食谱，可点击上方“AI文字”或“手动/快记”添加",
+                                    text = tr(
+                                        "未找到匹配的食物或食谱，可点击上方“AI文字”或“手动/快记”添加",
+                                        "No matches found — try AI Text or Manual entry above"
+                                    ),
                                     style = MaterialTheme.typography.bodyMedium,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     modifier = Modifier.padding(vertical = 24.dp)
@@ -311,7 +318,7 @@ fun AddMealScreen(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text(
-                                    text = "本餐总计",
+                                    text = tr("本餐总计", "Meal Total"),
                                     style = MaterialTheme.typography.titleSmall,
                                     color = MaterialTheme.colorScheme.onPrimaryContainer
                                 )
@@ -471,8 +478,15 @@ private fun EmptyMealState(intakeType: IntakeType) {
                     .graphicsLayer { scaleX = pulseScale; scaleY = pulseScale },
                 tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
             )
-            Text("还没有记录", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Text("拍照识图、AI 一句话记餐或搜索食物库添加", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f))
+            Text(tr("还没有记录", "No entries yet"), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(
+                tr(
+                    "拍照识图、AI 一句话记餐或搜索食物库添加",
+                    "Tap Photo, AI Text, or search your library above"
+                ),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+            )
         }
     }
 }
@@ -556,7 +570,7 @@ private fun MealIntakeCard(
                         if (foodItems != null) {
                             Icon(
                                 if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
-                                contentDescription = "展开",
+                                contentDescription = tr("展开", "Expand"),
                                 modifier = Modifier.size(18.dp),
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -570,7 +584,10 @@ private fun MealIntakeCard(
                     if (!expanded) {
                         val factor = intake.amount / 100.0
                         Text(
-                            text = "碳水 ${(meal.carbohydrates100 * factor).roundToInt()}g · 脂肪 ${(meal.fat100 * factor).roundToInt()}g · 蛋白质 ${(meal.proteins100 * factor).roundToInt()}g",
+                            text = tr(
+                                "碳水 ${(meal.carbohydrates100 * factor).roundToInt()}g · 脂肪 ${(meal.fat100 * factor).roundToInt()}g · 蛋白质 ${(meal.proteins100 * factor).roundToInt()}g",
+                                "C ${(meal.carbohydrates100 * factor).roundToInt()}g · F ${(meal.fat100 * factor).roundToInt()}g · P ${(meal.proteins100 * factor).roundToInt()}g"
+                            ),
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                         )
@@ -586,10 +603,10 @@ private fun MealIntakeCard(
                 )
 
                 IconButton(onClick = onEdit, modifier = Modifier.size(32.dp)) {
-                    Icon(Icons.Filled.Edit, contentDescription = "编辑", modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Icon(Icons.Filled.Edit, contentDescription = tr("编辑", "Edit"), modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
                 IconButton(onClick = { showDeleteConfirm = true }, modifier = Modifier.size(32.dp)) {
-                    Icon(Icons.Filled.Delete, contentDescription = "删除", modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.error)
+                    Icon(Icons.Filled.Delete, contentDescription = tr("删除", "Delete"), modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.error)
                 }
             }
 
@@ -618,15 +635,15 @@ private fun MealIntakeCard(
     if (showDeleteConfirm) {
         AlertDialog(
             onDismissRequest = { showDeleteConfirm = false },
-            title = { Text("确认删除") },
-            text = { Text("确定要删除这条记录吗？") },
+            title = { Text(tr("确认删除", "Delete Entry")) },
+            text = { Text(tr("确定要删除这条记录吗？", "Delete this entry?")) },
             confirmButton = {
                 TextButton(
                     onClick = { onDelete(); showDeleteConfirm = false },
                     colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
-                ) { Text("删除") }
+                ) { Text(tr("删除", "Delete")) }
             },
-            dismissButton = { TextButton(onClick = { showDeleteConfirm = false }) { Text("取消") } }
+            dismissButton = { TextButton(onClick = { showDeleteConfirm = false }) { Text(tr("取消", "Cancel")) } }
         )
     }
 
@@ -662,7 +679,8 @@ private fun ManualAddDialog(
     var fat by remember { mutableStateOf("") }
     var protein by remember { mutableStateOf("") }
     var weight by remember { mutableStateOf("100") }
-    var portionLabel by remember { mutableStateOf("份") }
+    val defaultPortionLabel = tr("份", "serving")
+    var portionLabel by remember { mutableStateOf(defaultPortionLabel) }
     var showMicros by remember { mutableStateOf(false) }
     var fiber by remember { mutableStateOf("") }
     var sugars by remember { mutableStateOf("") }
@@ -670,6 +688,7 @@ private fun ManualAddDialog(
     var sodium by remember { mutableStateOf("") }
     var cholesterol by remember { mutableStateOf("") }
 
+    val isZh = LocalIsChinese.current
     val energyVal = energy.toDoubleOrNull()
     val weightVal = weight.toDoubleOrNull()
     val isValid = name.isNotBlank() &&
@@ -680,7 +699,7 @@ private fun ManualAddDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("手动添加 / 快记", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold) },
+        title = { Text(tr("手动添加 / 快记", "Manual / Quick Add"), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold) },
         text = {
             Column(
                 modifier = Modifier
@@ -696,16 +715,16 @@ private fun ManualAddDialog(
                             onClick = { mode = m },
                             shape = SegmentedButtonDefaults.itemShape(index = idx, count = ManualEntryMode.entries.size)
                         ) {
-                            Text(m.label, style = MaterialTheme.typography.labelSmall, maxLines = 1)
+                            Text(m.displayLabel(isZh), style = MaterialTheme.typography.labelSmall, maxLines = 1)
                         }
                     }
                 }
 
                 Text(
                     text = when (mode) {
-                        ManualEntryMode.PER_100G -> "输入每 100g 包装营养表及食用克重"
-                        ManualEntryMode.WHOLE_PORTION -> "直接输入整份食物总重及总热量，系统自动换算"
-                        ManualEntryMode.QUICK_ADD -> "只填名称与总热量即可极速记录（宏量可选）"
+                        ManualEntryMode.PER_100G -> tr("输入每 100g 包装营养表及食用克重", "Enter label nutrition per 100g and serving weight")
+                        ManualEntryMode.WHOLE_PORTION -> tr("直接输入整份食物总重及总热量，系统自动换算", "Enter total serving weight & calories — auto-scaled")
+                        ManualEntryMode.QUICK_ADD -> tr("只填名称与总热量即可极速记录（宏量可选）", "Name and calories only for instant logging")
                     },
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -714,14 +733,19 @@ private fun ManualAddDialog(
                 OutlinedTextField(
                     value = name,
                     onValueChange = { name = it },
-                    label = { Text("食物名称") },
+                    label = { Text(tr("食物名称", "Food name")) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
                 OutlinedTextField(
                     value = energy,
                     onValueChange = { energy = it },
-                    label = { Text(if (mode == ManualEntryMode.PER_100G) "每100g热量 ($unitLabel)" else "总热量 ($unitLabel)") },
+                    label = {
+                        Text(
+                            if (mode == ManualEntryMode.PER_100G) tr("每100g热量 ($unitLabel)", "Calories / 100g ($unitLabel)")
+                            else tr("总热量 ($unitLabel)", "Total calories ($unitLabel)")
+                        )
+                    },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
@@ -732,7 +756,7 @@ private fun ManualAddDialog(
                         OutlinedTextField(
                             value = weight,
                             onValueChange = { weight = it },
-                            label = { Text("份量 (g)") },
+                            label = { Text(tr("份量 (g)", "Weight (g)")) },
                             singleLine = true,
                             modifier = Modifier.weight(1f),
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
@@ -741,7 +765,7 @@ private fun ManualAddDialog(
                             OutlinedTextField(
                                 value = portionLabel,
                                 onValueChange = { portionLabel = it },
-                                label = { Text("单位(碗/个/份)") },
+                                label = { Text(tr("单位(碗/个/份)", "Unit (bowl/pc)")) },
                                 singleLine = true,
                                 modifier = Modifier.weight(1f)
                             )
@@ -753,7 +777,7 @@ private fun ManualAddDialog(
                     OutlinedTextField(
                         value = carbs,
                         onValueChange = { carbs = it },
-                        label = { Text("碳水(g)") },
+                        label = { Text(tr("碳水(g)", "Carbs (g)")) },
                         singleLine = true,
                         modifier = Modifier.weight(1f),
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
@@ -761,7 +785,7 @@ private fun ManualAddDialog(
                     OutlinedTextField(
                         value = fat,
                         onValueChange = { fat = it },
-                        label = { Text("脂肪(g)") },
+                        label = { Text(tr("脂肪(g)", "Fat (g)")) },
                         singleLine = true,
                         modifier = Modifier.weight(1f),
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
@@ -769,7 +793,7 @@ private fun ManualAddDialog(
                     OutlinedTextField(
                         value = protein,
                         onValueChange = { protein = it },
-                        label = { Text("蛋白(g)") },
+                        label = { Text(tr("蛋白(g)", "Protein (g)")) },
                         singleLine = true,
                         modifier = Modifier.weight(1f),
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
@@ -781,36 +805,39 @@ private fun ManualAddDialog(
                         onClick = { showMicros = !showMicros },
                         contentPadding = PaddingValues(0.dp)
                     ) {
-                        Text(if (showMicros) "收起微量营养素" else "展开微量营养素（纤维/糖/钠等，可选）")
+                        Text(
+                            if (showMicros) tr("收起微量营养素", "Hide micronutrients")
+                            else tr("展开微量营养素（纤维/糖/钠等，可选）", "Show micronutrients (fiber, sugars, sodium, optional)")
+                        )
                     }
                     if (showMicros) {
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             OutlinedTextField(
                                 value = fiber, onValueChange = { fiber = it },
-                                label = { Text("纤维(g)") }, singleLine = true, modifier = Modifier.weight(1f),
+                                label = { Text(tr("纤维(g)", "Fiber (g)")) }, singleLine = true, modifier = Modifier.weight(1f),
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
                             )
                             OutlinedTextField(
                                 value = sugars, onValueChange = { sugars = it },
-                                label = { Text("糖(g)") }, singleLine = true, modifier = Modifier.weight(1f),
+                                label = { Text(tr("糖(g)", "Sugars (g)")) }, singleLine = true, modifier = Modifier.weight(1f),
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
                             )
                         }
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             OutlinedTextField(
                                 value = satFat, onValueChange = { satFat = it },
-                                label = { Text("饱和脂肪(g)") }, singleLine = true, modifier = Modifier.weight(1f),
+                                label = { Text(tr("饱和脂肪(g)", "Sat. Fat (g)")) }, singleLine = true, modifier = Modifier.weight(1f),
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
                             )
                             OutlinedTextField(
                                 value = sodium, onValueChange = { sodium = it },
-                                label = { Text("钠(mg)") }, singleLine = true, modifier = Modifier.weight(1f),
+                                label = { Text(tr("钠(mg)", "Sodium (mg)")) }, singleLine = true, modifier = Modifier.weight(1f),
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
                             )
                         }
                         OutlinedTextField(
                             value = cholesterol, onValueChange = { cholesterol = it },
-                            label = { Text("胆固醇(mg)") }, singleLine = true, modifier = Modifier.fillMaxWidth(),
+                            label = { Text(tr("胆固醇(mg)", "Cholesterol (mg)")) }, singleLine = true, modifier = Modifier.fillMaxWidth(),
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
                         )
                     }
@@ -838,9 +865,9 @@ private fun ManualAddDialog(
                     )
                 },
                 enabled = isValid
-            ) { Text("添加") }
+            ) { Text(tr("添加", "Add")) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(tr("取消", "Cancel")) } },
         containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
     )
 }
@@ -854,9 +881,10 @@ private fun RecentIntakesRow(
 ) {
     var confirmItem by remember { mutableStateOf<AddMealViewModel.RecentIntake?>(null) }
 
+    val isZh = LocalIsChinese.current
     Column {
         Text(
-            text = "近期常吃",
+            text = tr("近期常吃", "Recently Eaten"),
             style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(horizontal = Dimens.ContentPadding, vertical = 4.dp)
@@ -885,18 +913,23 @@ private fun RecentIntakesRow(
     }
 
     confirmItem?.let { item ->
-        val dateStr = targetDate.format(DateTimeFormatter.ofPattern("MM月dd日"))
+        val dateStr = LocaleHelper.formatMonthDay(targetDate, isZh)
         AlertDialog(
             onDismissRequest = { confirmItem = null },
-            title = { Text("复用记录") },
+            title = { Text(tr("复用记录", "Re-log Meal")) },
             text = {
-                Text("将 \"${item.meal.name}\"\n${item.amount.roundToInt()}g · ${UnitCalc.formatEnergy(item.kcal, useKj)}\n添加到 $dateStr 的饮食？")
+                Text(
+                    tr(
+                        "将 \"${item.meal.name}\"\n${item.amount.roundToInt()}g · ${UnitCalc.formatEnergy(item.kcal, useKj)}\n添加到 $dateStr 的饮食？",
+                        "Add \"${item.meal.name}\"\n${item.amount.roundToInt()}g · ${UnitCalc.formatEnergy(item.kcal, useKj)}\nto $dateStr?"
+                    )
+                )
             },
             confirmButton = {
-                TextButton(onClick = { onSelect(item); confirmItem = null }) { Text("确认添加") }
+                TextButton(onClick = { onSelect(item); confirmItem = null }) { Text(tr("确认添加", "Add")) }
             },
             dismissButton = {
-                TextButton(onClick = { confirmItem = null }) { Text("取消") }
+                TextButton(onClick = { confirmItem = null }) { Text(tr("取消", "Cancel")) }
             }
         )
     }
@@ -909,7 +942,7 @@ private fun RecipeChipsRow(
 ) {
     Column {
         Text(
-            text = "我的食谱 / 套餐",
+            text = tr("我的食谱 / 套餐", "My Recipes / Presets"),
             style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(horizontal = Dimens.ContentPadding, vertical = 4.dp)
@@ -941,10 +974,15 @@ private fun LibraryQuickCard(meal: Meal, useKj: Boolean, onClick: () -> Unit) {
         ListItem(
             headlineContent = { Text(meal.name, fontWeight = FontWeight.Medium) },
             supportingContent = {
-                Text("每100g: ${UnitCalc.formatEnergy(meal.energyKcal100, useKj)} · 碳水 ${meal.carbohydrates100.roundToInt()}g · 脂肪 ${meal.fat100.roundToInt()}g · 蛋白 ${meal.proteins100.roundToInt()}g")
+                Text(
+                    tr(
+                        "每100g: ${UnitCalc.formatEnergy(meal.energyKcal100, useKj)} · 碳水 ${meal.carbohydrates100.roundToInt()}g · 脂肪 ${meal.fat100.roundToInt()}g · 蛋白 ${meal.proteins100.roundToInt()}g",
+                        "Per 100g: ${UnitCalc.formatEnergy(meal.energyKcal100, useKj)} · C ${meal.carbohydrates100.roundToInt()}g · F ${meal.fat100.roundToInt()}g · P ${meal.proteins100.roundToInt()}g"
+                    )
+                )
             },
             trailingContent = {
-                Icon(Icons.Filled.AddCircleOutline, contentDescription = "添加", tint = MaterialTheme.colorScheme.primary)
+                Icon(Icons.Filled.AddCircleOutline, contentDescription = tr("添加", "Add"), tint = MaterialTheme.colorScheme.primary)
             },
             colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)
         )
@@ -964,7 +1002,12 @@ private fun RecipeQuickCard(recipe: RecipeWithIngredients, useKj: Boolean, onCli
             leadingContent = { Icon(Icons.Filled.RestaurantMenu, null, tint = MaterialTheme.colorScheme.primary) },
             headlineContent = { Text(recipe.recipe.name, fontWeight = FontWeight.SemiBold) },
             supportingContent = {
-                Text("${recipe.ingredients.size} 种食材 · 约 ${UnitCalc.formatEnergy(totalKcal, useKj)}")
+                Text(
+                    tr(
+                        "${recipe.ingredients.size} 种食材 · 约 ${UnitCalc.formatEnergy(totalKcal, useKj)}",
+                        "${recipe.ingredients.size} items · ~${UnitCalc.formatEnergy(totalKcal, useKj)}"
+                    )
+                )
             },
             trailingContent = { Icon(Icons.Filled.AddCircle, null, tint = MaterialTheme.colorScheme.primary) },
             colors = ListItemDefaults.colors(containerColor = androidx.compose.ui.graphics.Color.Transparent)
@@ -983,7 +1026,7 @@ fun PortionLogDialog(
     val grams = gramsStr.toDoubleOrNull() ?: 0.0
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("记录 ${meal.name}") },
+        title = { Text(tr("记录 ${meal.name}", "Log ${meal.name}")) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 if (meal.portionGrams != null && !meal.portionLabel.isNullOrBlank()) {
@@ -992,7 +1035,7 @@ fun PortionLogDialog(
                             val g = (meal.portionGrams * mult).roundToInt()
                             SuggestionChip(
                                 onClick = { gramsStr = g.toString() },
-                                label = { Text("${mult}${meal.portionLabel} (${g}g)") }
+                                label = { Text("${mult} ${meal.portionLabel} (${g}g)") }
                             )
                         }
                     }
@@ -1000,22 +1043,25 @@ fun PortionLogDialog(
                 OutlinedTextField(
                     value = gramsStr,
                     onValueChange = { gramsStr = it },
-                    label = { Text("食用克重 (g)") },
+                    label = { Text(tr("食用克重 (g)", "Serving weight (g)")) },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     modifier = Modifier.fillMaxWidth()
                 )
                 Text(
-                    text = "预计摄入：${UnitCalc.formatEnergy(meal.energyKcal100 * grams / 100.0, useKj)}",
+                    text = tr(
+                        "预计摄入：${UnitCalc.formatEnergy(meal.energyKcal100 * grams / 100.0, useKj)}",
+                        "Estimated: ${UnitCalc.formatEnergy(meal.energyKcal100 * grams / 100.0, useKj)}"
+                    ),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.primary
                 )
             }
         },
         confirmButton = {
-            Button(onClick = { onConfirm(grams) }, enabled = grams > 0.0) { Text("添加") }
+            Button(onClick = { onConfirm(grams) }, enabled = grams > 0.0) { Text(tr("添加", "Add")) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } }
+        dismissButton = { TextButton(onClick = onDismiss) { Text(tr("取消", "Cancel")) } }
     )
 }
 
@@ -1033,7 +1079,7 @@ fun RecipeLogDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("记入食谱：${recipe.recipe.name}") },
+        title = { Text(tr("记入食谱：${recipe.recipe.name}", "Log Recipe: ${recipe.recipe.name}")) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -1041,28 +1087,31 @@ fun RecipeLogDialog(
                         FilterChip(
                             selected = servings == s,
                             onClick = { servingsStr = s.toString() },
-                            label = { Text("${s}份") }
+                            label = { Text(tr("${s}份", "${s}x")) }
                         )
                     }
                 }
                 OutlinedTextField(
                     value = servingsStr,
                     onValueChange = { servingsStr = it },
-                    label = { Text("食用份数") },
+                    label = { Text(tr("食用份数", "Servings")) },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     modifier = Modifier.fillMaxWidth()
                 )
                 Text(
-                    text = "预计摄入：${UnitCalc.formatEnergy(baseKcal * factor, useKj)}",
+                    text = tr(
+                        "预计摄入：${UnitCalc.formatEnergy(baseKcal * factor, useKj)}",
+                        "Estimated: ${UnitCalc.formatEnergy(baseKcal * factor, useKj)}"
+                    ),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.primary
                 )
             }
         },
         confirmButton = {
-            Button(onClick = { onConfirm(servings) }, enabled = servings > 0.0) { Text("确认记入") }
+            Button(onClick = { onConfirm(servings) }, enabled = servings > 0.0) { Text(tr("确认记入", "Log Recipe")) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } }
+        dismissButton = { TextButton(onClick = onDismiss) { Text(tr("取消", "Cancel")) } }
     )
 }

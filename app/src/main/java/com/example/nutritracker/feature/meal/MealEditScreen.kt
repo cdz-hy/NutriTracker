@@ -22,8 +22,10 @@ import com.example.nutritracker.data.entity.IntakeType
 import com.example.nutritracker.ui.components.AppDatePickerDialog
 import com.example.nutritracker.ui.components.mealTypeLabel
 import com.example.nutritracker.ui.theme.Dimens
+import com.example.nutritracker.util.LocalIsChinese
+import com.example.nutritracker.util.LocaleHelper
 import com.example.nutritracker.util.UnitCalc
-import java.time.format.DateTimeFormatter
+import com.example.nutritracker.util.tr
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -55,9 +57,9 @@ fun MealEditScreen(
                 title = {
                     Text(
                         text = when {
-                            vm.isTemplateOnlyEdit -> "编辑食物模板"
-                            vm.isEditing -> "编辑记录"
-                            else -> "新建食物"
+                            vm.isTemplateOnlyEdit -> tr("编辑食物模板", "Edit Food Template")
+                            vm.isEditing -> tr("编辑记录", "Edit Entry")
+                            else -> tr("新建食物", "New Food")
                         },
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold
@@ -65,14 +67,14 @@ fun MealEditScreen(
                 },
                 navigationIcon = {
                     IconButton(onClick = onBack, enabled = !vm.isSaving) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = tr("返回", "Back"))
                     }
                 },
                 actions = {
                     IconButton(onClick = { vm.toggleFavorite() }, enabled = !vm.isSaving) {
                         Icon(
                             if (state.isFavorite) Icons.Filled.Star else Icons.Filled.StarBorder,
-                            contentDescription = "收藏食物",
+                            contentDescription = tr("收藏食物", "Favorite food"),
                             tint = if (state.isFavorite) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
@@ -83,7 +85,7 @@ fun MealEditScreen(
                         if (vm.isSaving) {
                             CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
                         } else {
-                            Icon(Icons.Filled.Save, contentDescription = "保存", tint = MaterialTheme.colorScheme.primary)
+                            Icon(Icons.Filled.Save, contentDescription = tr("保存", "Save"), tint = MaterialTheme.colorScheme.primary)
                         }
                     }
                 },
@@ -99,7 +101,7 @@ fun MealEditScreen(
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // 共享模板修改策略提示
+            // Shared template edit strategy
             if (vm.sharedIntakeCount > 1 && !vm.isTemplateOnlyEdit) {
                 Card(
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
@@ -114,14 +116,26 @@ fun MealEditScreen(
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                text = "此食物被引用了 ${vm.sharedIntakeCount} 次",
+                                text = tr(
+                                    "此食物被引用了 ${vm.sharedIntakeCount} 次",
+                                    "Referenced in ${vm.sharedIntakeCount} entries"
+                                ),
                                 style = MaterialTheme.typography.labelLarge,
                                 fontWeight = FontWeight.SemiBold,
                                 color = MaterialTheme.colorScheme.onSecondaryContainer
                             )
                             Text(
-                                text = if (vm.cloneAsNewMeal) "开启：若修改营养将另存为新食物，不影响历史记录"
-                                else "关闭：修改营养将同步更新所有历史记录与食物库",
+                                text = if (vm.cloneAsNewMeal) {
+                                    tr(
+                                        "开启：若修改营养将另存为新食物，不影响历史记录",
+                                        "On: Save edits as a new food without changing history"
+                                    )
+                                } else {
+                                    tr(
+                                        "关闭：修改营养将同步更新所有历史记录与食物库",
+                                        "Off: Edits will update all past entries & library"
+                                    )
+                                },
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.85f)
                             )
@@ -138,12 +152,12 @@ fun MealEditScreen(
                 value = state.name,
                 onValueChange = { vm.updateName(it) },
                 enabled = !vm.isSaving,
-                label = { Text("食物名称") },
+                label = { Text(tr("食物名称", "Food name")) },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true
             )
 
-            // 日期选择器（模板模式不显示）
+            // Date picker (hidden in template-only mode)
             if (!vm.isTemplateOnlyEdit) {
                 var showDatePicker by remember { mutableStateOf(false) }
                 OutlinedCard(
@@ -160,9 +174,9 @@ fun MealEditScreen(
                     ) {
                         Icon(Icons.Filled.CalendarMonth, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
                         Column(modifier = Modifier.weight(1f)) {
-                            Text("记录日期", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(tr("记录日期", "Entry Date"), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             Text(
-                                text = vm.selectedDate.format(DateTimeFormatter.ofPattern("yyyy年MM月dd日")),
+                                text = LocaleHelper.formatFullDate(vm.selectedDate, LocalIsChinese.current),
                                 style = MaterialTheme.typography.bodyLarge,
                                 fontWeight = FontWeight.Medium
                             )
@@ -179,10 +193,10 @@ fun MealEditScreen(
                 }
             }
 
-            // 子项区域
+            // Sub-items
             if (vm.foodItems.isNotEmpty()) {
                 Text(
-                    text = "包含子项 (修改子项将自动重算总计)",
+                    text = tr("包含子项 (修改子项将自动重算总计)", "Ingredients (totals recalculate automatically)"),
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.primary
@@ -202,7 +216,7 @@ fun MealEditScreen(
                     enabled = !vm.isSaving,
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text("添加新子项")
+                    Text(tr("添加新子项", "Add Ingredient"))
                 }
 
                 HorizontalDivider()
@@ -212,7 +226,7 @@ fun MealEditScreen(
                     enabled = !vm.isSaving,
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text("拆分为子食材项")
+                    Text(tr("拆分为子食材项", "Split into Ingredients"))
                 }
             }
 
@@ -223,7 +237,15 @@ fun MealEditScreen(
                     value = state.amountStr,
                     onValueChange = { vm.updateAmount(it) },
                     enabled = fieldsEnabled,
-                    label = { Text(if (!fieldsEnabled) "食用份量 (g) - 由子项自动汇总" else "食用份量 (g)") },
+                    label = {
+                        Text(
+                            if (!fieldsEnabled) {
+                                tr("食用份量 (g) - 由子项自动汇总", "Serving (g) — auto-summed")
+                            } else {
+                                tr("食用份量 (g)", "Serving weight (g)")
+                            }
+                        )
+                    },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
@@ -231,23 +253,23 @@ fun MealEditScreen(
             }
 
             Text(
-                text = "每 100g 营养成分",
+                text = tr("每 100g 营养成分", "Nutrition per 100g"),
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.SemiBold
             )
 
-            NutrientField("卡路里 (kcal / 100g)", state.energyStr, enabled = fieldsEnabled) { vm.updateEnergy(it) }
-            NutrientField("碳水化合物 (g / 100g)", state.carbsStr, enabled = fieldsEnabled) { vm.updateCarbs(it) }
-            NutrientField("脂肪 (g / 100g)", state.fatStr, enabled = fieldsEnabled) { vm.updateFat(it) }
-            NutrientField("蛋白质 (g / 100g)", state.proteinStr, enabled = fieldsEnabled) { vm.updateProtein(it) }
+            NutrientField(tr("卡路里 (kcal / 100g)", "Calories (kcal / 100g)"), state.energyStr, enabled = fieldsEnabled) { vm.updateEnergy(it) }
+            NutrientField(tr("碳水化合物 (g / 100g)", "Carbs (g / 100g)"), state.carbsStr, enabled = fieldsEnabled) { vm.updateCarbs(it) }
+            NutrientField(tr("脂肪 (g / 100g)", "Fat (g / 100g)"), state.fatStr, enabled = fieldsEnabled) { vm.updateFat(it) }
+            NutrientField(tr("蛋白质 (g / 100g)", "Protein (g / 100g)"), state.proteinStr, enabled = fieldsEnabled) { vm.updateProtein(it) }
 
-            // 常用份量单位（用于食物库快速复用）
+            // Portion unit
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(
                     value = state.portionLabel,
                     onValueChange = { vm.updatePortionLabel(it) },
                     enabled = !vm.isSaving,
-                    label = { Text("默认单位(如 碗/个)") },
+                    label = { Text(tr("默认单位(如 碗/个)", "Unit (e.g. bowl/pc)")) },
                     modifier = Modifier.weight(1f),
                     singleLine = true
                 )
@@ -255,14 +277,14 @@ fun MealEditScreen(
                     value = state.portionGramsStr,
                     onValueChange = { vm.updatePortionGrams(it) },
                     enabled = !vm.isSaving,
-                    label = { Text("每份克重 (g)") },
+                    label = { Text(tr("每份克重 (g)", "Grams / unit (g)")) },
                     modifier = Modifier.weight(1f),
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
                 )
             }
 
-            // 可展开微量营养素编辑
+            // Expandable micronutrients
             TextButton(
                 onClick = { showMicros = !showMicros },
                 contentPadding = PaddingValues(0.dp)
@@ -273,16 +295,16 @@ fun MealEditScreen(
                     modifier = Modifier.size(18.dp)
                 )
                 Spacer(Modifier.width(4.dp))
-                Text("微量营养素与健康指标 (每100g，可选)")
+                Text(tr("微量营养素与健康指标 (每100g，可选)", "Micronutrients (per 100g, optional)"))
             }
 
             if (showMicros) {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    NutrientField("膳食纤维 (g / 100g)", state.fiberStr, enabled = !vm.isSaving) { vm.updateFiber(it) }
-                    NutrientField("糖 (g / 100g)", state.sugarsStr, enabled = !vm.isSaving) { vm.updateSugars(it) }
-                    NutrientField("饱和脂肪 (g / 100g)", state.satFatStr, enabled = !vm.isSaving) { vm.updateSatFat(it) }
-                    NutrientField("钠 (mg / 100g)", state.sodiumStr, enabled = !vm.isSaving) { vm.updateSodium(it) }
-                    NutrientField("胆固醇 (mg / 100g)", state.cholesterolStr, enabled = !vm.isSaving) { vm.updateCholesterol(it) }
+                    NutrientField(tr("膳食纤维 (g / 100g)", "Dietary Fiber (g / 100g)"), state.fiberStr, enabled = !vm.isSaving) { vm.updateFiber(it) }
+                    NutrientField(tr("糖 (g / 100g)", "Sugars (g / 100g)"), state.sugarsStr, enabled = !vm.isSaving) { vm.updateSugars(it) }
+                    NutrientField(tr("饱和脂肪 (g / 100g)", "Saturated Fat (g / 100g)"), state.satFatStr, enabled = !vm.isSaving) { vm.updateSatFat(it) }
+                    NutrientField(tr("钠 (mg / 100g)", "Sodium (mg / 100g)"), state.sodiumStr, enabled = !vm.isSaving) { vm.updateSodium(it) }
+                    NutrientField(tr("胆固醇 (mg / 100g)", "Cholesterol (mg / 100g)"), state.cholesterolStr, enabled = !vm.isSaving) { vm.updateCholesterol(it) }
                 }
             }
 
@@ -301,7 +323,7 @@ fun MealEditScreen(
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     Text(
-                        text = if (vm.isTemplateOnlyEdit) "每100g 能量概览" else "本次摄入合计",
+                        text = if (vm.isTemplateOnlyEdit) tr("每100g 能量概览", "Energy per 100g") else tr("本次摄入合计", "Entry Total"),
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.colorScheme.onPrimaryContainer
@@ -313,9 +335,14 @@ fun MealEditScreen(
                         color = MaterialTheme.colorScheme.onPrimaryContainer
                     )
                     Text(
-                        text = "碳水 ${UnitCalc.formatDecimal((state.carbsStr.toDoubleOrNull() ?: 0.0) * factor, 1)}g · " +
-                            "脂肪 ${UnitCalc.formatDecimal((state.fatStr.toDoubleOrNull() ?: 0.0) * factor, 1)}g · " +
-                            "蛋白质 ${UnitCalc.formatDecimal((state.proteinStr.toDoubleOrNull() ?: 0.0) * factor, 1)}g",
+                        text = tr(
+                            "碳水 ${UnitCalc.formatDecimal((state.carbsStr.toDoubleOrNull() ?: 0.0) * factor, 1)}g · " +
+                                "脂肪 ${UnitCalc.formatDecimal((state.fatStr.toDoubleOrNull() ?: 0.0) * factor, 1)}g · " +
+                                "蛋白质 ${UnitCalc.formatDecimal((state.proteinStr.toDoubleOrNull() ?: 0.0) * factor, 1)}g",
+                            "Carbs ${UnitCalc.formatDecimal((state.carbsStr.toDoubleOrNull() ?: 0.0) * factor, 1)}g · " +
+                                "Fat ${UnitCalc.formatDecimal((state.fatStr.toDoubleOrNull() ?: 0.0) * factor, 1)}g · " +
+                                "Protein ${UnitCalc.formatDecimal((state.proteinStr.toDoubleOrNull() ?: 0.0) * factor, 1)}g"
+                        ),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f)
                     )
@@ -323,7 +350,7 @@ fun MealEditScreen(
             }
 
             if (!vm.isTemplateOnlyEdit) {
-                Text("餐食类型", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                Text(tr("餐食类型", "Meal Type"), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -354,9 +381,9 @@ fun MealEditScreen(
                 } else {
                     Text(
                         text = when {
-                            vm.isTemplateOnlyEdit -> "保存模板"
-                            vm.isEditing -> "保存修改"
-                            else -> "记录此餐"
+                            vm.isTemplateOnlyEdit -> tr("保存模板", "Save Template")
+                            vm.isEditing -> tr("保存修改", "Save Changes")
+                            else -> tr("记录此餐", "Log Meal")
                         },
                         style = MaterialTheme.typography.labelLarge
                     )
@@ -409,20 +436,20 @@ private fun SubItemCard(
                 OutlinedTextField(
                     value = item.name,
                     onValueChange = { onUpdate(item.copy(name = it)) },
-                    label = { Text("名称") },
+                    label = { Text(tr("名称", "Name")) },
                     enabled = enabled,
                     modifier = Modifier.weight(1f),
                     singleLine = true
                 )
                 IconButton(onClick = onRemove, enabled = enabled) {
-                    Icon(Icons.Filled.Delete, contentDescription = "删除", tint = MaterialTheme.colorScheme.error)
+                    Icon(Icons.Filled.Delete, contentDescription = tr("删除", "Remove"), tint = MaterialTheme.colorScheme.error)
                 }
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(
                     value = item.weightG,
                     onValueChange = { onUpdate(item.copy(weightG = it)) },
-                    label = { Text("重量(g)") },
+                    label = { Text(tr("重量(g)", "Weight(g)")) },
                     enabled = enabled,
                     modifier = Modifier.weight(1f),
                     singleLine = true,
@@ -431,7 +458,7 @@ private fun SubItemCard(
                 OutlinedTextField(
                     value = item.calories,
                     onValueChange = { onUpdate(item.copy(calories = it)) },
-                    label = { Text("Kcal") },
+                    label = { Text("kcal") },
                     enabled = enabled,
                     modifier = Modifier.weight(1f),
                     singleLine = true,
@@ -442,7 +469,7 @@ private fun SubItemCard(
                 OutlinedTextField(
                     value = item.carbs,
                     onValueChange = { onUpdate(item.copy(carbs = it)) },
-                    label = { Text("碳水") },
+                    label = { Text(tr("碳水", "Carbs")) },
                     enabled = enabled,
                     modifier = Modifier.weight(1f),
                     singleLine = true,
@@ -451,7 +478,7 @@ private fun SubItemCard(
                 OutlinedTextField(
                     value = item.protein,
                     onValueChange = { onUpdate(item.copy(protein = it)) },
-                    label = { Text("蛋白") },
+                    label = { Text(tr("蛋白", "Protein")) },
                     enabled = enabled,
                     modifier = Modifier.weight(1f),
                     singleLine = true,
@@ -460,7 +487,7 @@ private fun SubItemCard(
                 OutlinedTextField(
                     value = item.fat,
                     onValueChange = { onUpdate(item.copy(fat = it)) },
-                    label = { Text("脂肪") },
+                    label = { Text(tr("脂肪", "Fat")) },
                     enabled = enabled,
                     modifier = Modifier.weight(1f),
                     singleLine = true,

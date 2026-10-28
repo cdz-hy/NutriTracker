@@ -9,6 +9,7 @@ import com.example.nutritracker.data.entity.*
 import com.example.nutritracker.data.repository.*
 import com.example.nutritracker.feature.camera.NutritionResult
 import com.example.nutritracker.util.DayBoundaryCalc
+import com.example.nutritracker.util.LocaleHelper
 import com.example.nutritracker.util.UnitCalc
 import com.example.nutritracker.widget.NutriTrackerWidgetUpdater
 import com.google.gson.Gson
@@ -188,7 +189,8 @@ class MealEditViewModel @Inject constructor(
     fun toggleFavorite() { state = state.copy(isFavorite = !state.isFavorite) }
 
     fun addFoodItem() {
-        foodItems.add(EditableFoodItem(name = "新食物", weightG = "100", calories = "0", carbs = "0", protein = "0", fat = "0"))
+        val defaultName = LocaleHelper.tr(LocaleHelper.isChinese(appContext), "新食物", "New item")
+        foodItems.add(EditableFoodItem(name = defaultName, weightG = "100", calories = "0", carbs = "0", protein = "0", fat = "0"))
         recalculateTotals()
     }
 
@@ -234,8 +236,9 @@ class MealEditViewModel @Inject constructor(
     }
 
     private fun buildMealEntity(targetMealId: Long): Meal? {
+        val isZh = LocaleHelper.isChinese(appContext)
         if (state.name.isBlank()) {
-            validationError = "请输入食物名称"
+            validationError = LocaleHelper.tr(isZh, "请输入食物名称", "Please enter a food name")
             return null
         }
 
@@ -245,14 +248,15 @@ class MealEditViewModel @Inject constructor(
         val protein = state.proteinStr.toDoubleOrNull() ?: 0.0
 
         if (energy < 0 || carbs < 0 || fat < 0 || protein < 0) {
-            validationError = "营养成分数值不能为负数"
+            validationError = LocaleHelper.tr(isZh, "营养成分数值不能为负数", "Nutrient values cannot be negative")
             return null
         }
 
         val newFoodItemsJson = if (foodItems.isNotEmpty()) {
+            val unnamed = LocaleHelper.tr(isZh, "未命名", "Unnamed")
             val items = foodItems.map {
                 NutritionResult.FoodItem(
-                    name = it.name.ifBlank { "未命名" },
+                    name = it.name.ifBlank { unnamed },
                     weightG = (it.weightG.toDoubleOrNull() ?: 0.0).coerceAtLeast(0.0),
                     calories = (it.calories.toDoubleOrNull() ?: 0.0).coerceAtLeast(0.0),
                     carbs = (it.carbs.toDoubleOrNull() ?: 0.0).coerceAtLeast(0.0),
@@ -289,9 +293,10 @@ class MealEditViewModel @Inject constructor(
     fun save() = saveIntake()
 
     fun saveIntake() {
+        val isZh = LocaleHelper.isChinese(appContext)
         val amount = state.amountStr.toDoubleOrNull()
         if (!isTemplateOnlyEdit && (amount == null || amount <= 0.0)) {
-            validationError = "请输入大于 0 的食用份量 (g)"
+            validationError = LocaleHelper.tr(isZh, "请输入大于 0 的食用份量 (g)", "Please enter serving size > 0g")
             return
         }
 
@@ -348,7 +353,7 @@ class MealEditViewModel @Inject constructor(
                 NutriTrackerWidgetUpdater.enqueueUpdate(appContext)
                 isSaveCompleted = true
             } catch (e: Exception) {
-                validationError = "保存失败: ${e.message}"
+                validationError = LocaleHelper.tr(isZh, "保存失败: ${e.message}", "Save failed: ${e.message}")
             } finally {
                 isSaving = false
             }
