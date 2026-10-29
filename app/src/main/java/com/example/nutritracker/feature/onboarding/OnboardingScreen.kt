@@ -19,10 +19,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.nutritracker.R
 import com.example.nutritracker.data.entity.*
 import com.example.nutritracker.ui.components.AppDatePickerDialog
@@ -42,13 +43,16 @@ fun OnboardingScreen(
 ) {
     var page by remember { mutableIntStateOf(0) }
     val totalPages = 5
+    val isZh = LocalIsChinese.current
+    val appLanguage by vm.appLanguage.collectAsStateWithLifecycle()
+    var showLangMenu by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
             TopAppBar(
                 title = {
                     Text(
-                        text = "欢迎使用 NutriTracker",
+                        text = tr("欢迎使用 NutriTracker", "Welcome to NutriTracker"),
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold
                     )
@@ -56,7 +60,33 @@ fun OnboardingScreen(
                 navigationIcon = {
                     if (page > 0) {
                         IconButton(onClick = { page-- }, enabled = !vm.isSaving) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = tr("返回", "Back"))
+                        }
+                    }
+                },
+                actions = {
+                    Box {
+                        TextButton(onClick = { showLangMenu = true }) {
+                            Icon(Icons.Filled.Language, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(4.dp))
+                            Text(LocaleHelper.appLanguageLabel(appLanguage, isZh))
+                        }
+                        DropdownMenu(
+                            expanded = showLangMenu,
+                            onDismissRequest = { showLangMenu = false }
+                        ) {
+                            AppLanguage.entries.forEach { lang ->
+                                DropdownMenuItem(
+                                    text = { Text(LocaleHelper.appLanguageLabel(lang, isZh)) },
+                                    trailingIcon = {
+                                        if (appLanguage == lang) Icon(Icons.Filled.Check, null, modifier = Modifier.size(18.dp))
+                                    },
+                                    onClick = {
+                                        vm.setAppLanguage(lang)
+                                        showLangMenu = false
+                                    }
+                                )
+                            }
                         }
                     }
                 },
@@ -91,7 +121,7 @@ fun OnboardingScreen(
                     }
                 }
                 Text(
-                    text = "步骤 ${page + 1} / $totalPages",
+                    text = tr("步骤 ${page + 1} / $totalPages", "Step ${page + 1} / $totalPages"),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.align(Alignment.End)
@@ -159,7 +189,7 @@ fun OnboardingScreen(
                     CircularProgressIndicator(modifier = Modifier.size(22.dp), strokeWidth = 2.dp, color = MaterialTheme.colorScheme.onPrimary)
                 } else {
                     Text(
-                        text = if (page == totalPages - 1) "开始使用" else "下一步",
+                        text = if (page == totalPages - 1) tr("开始使用", "Get Started") else tr("下一步", "Next"),
                         style = MaterialTheme.typography.labelLarge,
                         fontWeight = FontWeight.Medium
                     )
@@ -179,10 +209,14 @@ fun OnboardingScreen(
 
 @Composable
 private fun GenderPage(vm: OnboardingViewModel) {
+    val isZh = LocalIsChinese.current
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        Text("性别", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+        Text(tr("性别", "Biological Sex"), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
         Text(
-            text = "选择您的性别以获得更准确的卡路里计算\n参考: IOM 2005 膳食营养素参考摄入量",
+            text = tr(
+                "选择您的性别以获得更准确的卡路里计算\n参考: IOM 2005 膳食营养素参考摄入量",
+                "Select your sex for accurate calorie estimation\nRef: IOM 2005 Dietary Reference Intakes"
+            ),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -192,33 +226,33 @@ private fun GenderPage(vm: OnboardingViewModel) {
                 selected = vm.gender == gender,
                 onClick = { vm.gender = gender },
                 label = when (gender) {
-                    Gender.MALE -> "男"
-                    Gender.FEMALE -> "女"
-                    Gender.NON_BINARY -> "非二元"
+                    Gender.MALE -> tr("男", "Male")
+                    Gender.FEMALE -> tr("女", "Female")
+                    Gender.NON_BINARY -> tr("非二元", "Non-binary")
                 },
                 description = when (gender) {
-                    Gender.MALE -> "使用男性 TDEE 公式"
-                    Gender.FEMALE -> "使用女性 TDEE 公式"
-                    Gender.NON_BINARY -> "可选择计算方式"
+                    Gender.MALE -> tr("使用男性 TDEE 公式", "Uses male TDEE equation")
+                    Gender.FEMALE -> tr("使用女性 TDEE 公式", "Uses female TDEE equation")
+                    Gender.NON_BINARY -> tr("可选择计算方式", "Choose calculation profile")
                 }
             )
         }
 
         if (vm.gender == Gender.NON_BINARY) {
-            Text("卡路里计算配置", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+            Text(tr("卡路里计算配置", "Calorie Profile"), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
             CaloriesProfile.entries.forEach { profile ->
                 SelectableCard(
                     selected = vm.caloriesProfile == profile,
                     onClick = { vm.caloriesProfile = profile },
                     label = when (profile) {
-                        CaloriesProfile.AVERAGED -> "平均值"
-                        CaloriesProfile.ESTROGEN_TYPICAL -> "雌激素典型"
-                        CaloriesProfile.TESTOSTERONE_TYPICAL -> "睾酮典型"
+                        CaloriesProfile.AVERAGED -> tr("平均值", "Averaged")
+                        CaloriesProfile.ESTROGEN_TYPICAL -> tr("雌激素典型", "Estrogen-typical")
+                        CaloriesProfile.TESTOSTERONE_TYPICAL -> tr("睾酮典型", "Testosterone-typical")
                     },
                     description = when (profile) {
-                        CaloriesProfile.AVERAGED -> "取男女公式的平均值"
-                        CaloriesProfile.ESTROGEN_TYPICAL -> "使用女性公式计算"
-                        CaloriesProfile.TESTOSTERONE_TYPICAL -> "使用男性公式计算"
+                        CaloriesProfile.AVERAGED -> tr("取男女公式的平均值", "Average of male and female equations")
+                        CaloriesProfile.ESTROGEN_TYPICAL -> tr("使用女性公式计算", "Uses female equation")
+                        CaloriesProfile.TESTOSTERONE_TYPICAL -> tr("使用男性公式计算", "Uses male equation")
                     }
                 )
             }
@@ -238,7 +272,7 @@ private fun GenderPage(vm: OnboardingViewModel) {
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column {
-                    Text("生日", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(tr("生日", "Birthday"), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Text(vm.birthdayStr, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.primary)
                 }
                 Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -261,33 +295,37 @@ private fun GenderPage(vm: OnboardingViewModel) {
 
 @Composable
 private fun BodyPage(vm: OnboardingViewModel) {
+    val isZh = LocalIsChinese.current
     var showHeightDialog by remember { mutableStateOf(false) }
     var showWeightDialog by remember { mutableStateOf(false) }
     var showTargetWeightDialog by remember { mutableStateOf(false) }
 
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        Text("身体数据", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+        Text(tr("身体数据", "Body Metrics"), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
         Text(
-            text = "输入您的身高和体重以计算卡路里需求\nBMI = 体重(kg) / 身高(m)²",
+            text = tr(
+                "输入您的身高和体重以计算卡路里需求\nBMI = 体重(kg) / 身高(m)²",
+                "Enter height and weight to estimate calorie needs\nBMI = weight (kg) / height² (m²)"
+            ),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
 
         PickerRow(
-            label = "身高",
-            value = if (vm.heightStr.isNotEmpty()) "${vm.heightStr} cm" else "点击设置",
+            label = tr("身高", "Height"),
+            value = if (vm.heightStr.isNotEmpty()) "${vm.heightStr} cm" else tr("点击设置", "Tap to set"),
             onClick = { showHeightDialog = true }
         )
 
         PickerRow(
-            label = "体重",
-            value = if (vm.weightStr.isNotEmpty()) "${vm.weightStr} kg" else "点击设置",
+            label = tr("体重", "Weight"),
+            value = if (vm.weightStr.isNotEmpty()) "${vm.weightStr} kg" else tr("点击设置", "Tap to set"),
             onClick = { showWeightDialog = true }
         )
 
         PickerRow(
-            label = "目标体重 (可选)",
-            value = if (vm.targetWeightStr.isNotEmpty()) "${vm.targetWeightStr} kg" else "点击设置",
+            label = tr("目标体重 (可选)", "Target Weight (optional)"),
+            value = if (vm.targetWeightStr.isNotEmpty()) "${vm.targetWeightStr} kg" else tr("点击设置", "Tap to set"),
             onClick = { showTargetWeightDialog = true }
         )
 
@@ -309,7 +347,7 @@ private fun BodyPage(vm: OnboardingViewModel) {
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("BMI 预览", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(tr("BMI 预览", "BMI Preview"), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Row(
                             modifier = Modifier
                                 .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f), MaterialTheme.shapes.extraSmall)
@@ -327,7 +365,7 @@ private fun BodyPage(vm: OnboardingViewModel) {
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Text(
-                                        text = if (std == BmiStandard.CHINA) "中国标准" else "世界标准",
+                                        text = if (std == BmiStandard.CHINA) tr("中国标准", "WGOC") else tr("世界标准", "WHO"),
                                         style = MaterialTheme.typography.labelSmall,
                                         fontWeight = if (active) FontWeight.Bold else FontWeight.Normal,
                                         color = if (active) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
@@ -342,9 +380,9 @@ private fun BodyPage(vm: OnboardingViewModel) {
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("健康状态", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(tr("健康状态", "Status"), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         Text(
-                            text = "${UnitCalc.formatDecimal(bmi, 1)} (${status.getLabel(vm.bmiStandard)})",
+                            text = "${UnitCalc.formatDecimal(bmi, 1)} (${status.getLabel(vm.bmiStandard, isZh)})",
                             style = MaterialTheme.typography.bodyLarge,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.primary
@@ -357,7 +395,7 @@ private fun BodyPage(vm: OnboardingViewModel) {
 
     if (showHeightDialog) {
         NumberPickerDialog(
-            title = "身高",
+            title = tr("身高", "Height"),
             unit = "cm",
             initialValue = vm.heightStr.toDoubleOrNull() ?: 170.0,
             range = 100.0..250.0,
@@ -368,7 +406,7 @@ private fun BodyPage(vm: OnboardingViewModel) {
     }
     if (showWeightDialog) {
         NumberPickerDialog(
-            title = "体重",
+            title = tr("体重", "Weight"),
             unit = "kg",
             initialValue = vm.weightStr.toDoubleOrNull() ?: 70.0,
             range = 30.0..300.0,
@@ -379,7 +417,7 @@ private fun BodyPage(vm: OnboardingViewModel) {
     }
     if (showTargetWeightDialog) {
         NumberPickerDialog(
-            title = "目标体重",
+            title = tr("目标体重", "Target Weight"),
             unit = "kg",
             initialValue = vm.targetWeightStr.toDoubleOrNull() ?: vm.weightStr.toDoubleOrNull() ?: 65.0,
             range = 30.0..300.0,
@@ -393,9 +431,12 @@ private fun BodyPage(vm: OnboardingViewModel) {
 @Composable
 private fun ActivityPage(vm: OnboardingViewModel) {
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        Text("活动水平", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+        Text(tr("活动水平", "Activity Level"), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
         Text(
-            text = "选择您的日常活动水平\n参考: IOM 2004 体力活动建议 (PMID: 15113740)",
+            text = tr(
+                "选择您的日常活动水平\n参考: IOM 2004 体力活动建议 (PMID: 15113740)",
+                "Select your typical daily activity level\nRef: IOM 2004 Physical Activity (PMID: 15113740)"
+            ),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -405,16 +446,16 @@ private fun ActivityPage(vm: OnboardingViewModel) {
                 selected = vm.activityLevel == level,
                 onClick = { vm.activityLevel = level },
                 label = when (level) {
-                    ActivityLevel.SEDENTARY -> "久坐不动"
-                    ActivityLevel.LOW_ACTIVE -> "低度活跃"
-                    ActivityLevel.ACTIVE -> "活跃"
-                    ActivityLevel.VERY_ACTIVE -> "非常活跃"
+                    ActivityLevel.SEDENTARY -> tr("久坐不动", "Sedentary")
+                    ActivityLevel.LOW_ACTIVE -> tr("低度活跃", "Low Active")
+                    ActivityLevel.ACTIVE -> tr("活跃", "Active")
+                    ActivityLevel.VERY_ACTIVE -> tr("非常活跃", "Very Active")
                 },
                 description = when (level) {
-                    ActivityLevel.SEDENTARY -> "PAL 1.25 - 办公室工作,很少运动"
-                    ActivityLevel.LOW_ACTIVE -> "PAL 1.5 - 轻度运动,每周1-3次"
-                    ActivityLevel.ACTIVE -> "PAL 1.75 - 中度运动,每周3-5次"
-                    ActivityLevel.VERY_ACTIVE -> "PAL 2.2 - 高强度运动,每周6-7次"
+                    ActivityLevel.SEDENTARY -> tr("PAL 1.25 - 办公室工作,很少运动", "PAL 1.25 — Desk job, minimal exercise")
+                    ActivityLevel.LOW_ACTIVE -> tr("PAL 1.5 - 轻度运动,每周1-3次", "PAL 1.5 — Light exercise 1–3x/week")
+                    ActivityLevel.ACTIVE -> tr("PAL 1.75 - 中度运动,每周3-5次", "PAL 1.75 — Moderate exercise 3–5x/week")
+                    ActivityLevel.VERY_ACTIVE -> tr("PAL 2.2 - 高强度运动,每周6-7次", "PAL 2.2 — Vigorous exercise 6–7x/week")
                 }
             )
         }
@@ -424,9 +465,12 @@ private fun ActivityPage(vm: OnboardingViewModel) {
 @Composable
 private fun GoalPage(vm: OnboardingViewModel) {
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        Text("体重目标", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+        Text(tr("体重目标", "Weight Goal"), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
         Text(
-            text = "选择您的体重管理目标\n1kg 体脂 ≈ 7700 kcal",
+            text = tr(
+                "选择您的体重管理目标\n1kg 体脂 ≈ 7700 kcal",
+                "Choose your weight target\n1 kg body fat ≈ 7,700 kcal"
+            ),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -436,14 +480,14 @@ private fun GoalPage(vm: OnboardingViewModel) {
                 selected = vm.weightGoal == goal,
                 onClick = { vm.weightGoal = goal },
                 label = when (goal) {
-                    WeightGoal.LOSE -> "减重"
-                    WeightGoal.MAINTAIN -> "维持体重"
-                    WeightGoal.GAIN -> "增重"
+                    WeightGoal.LOSE -> tr("减重", "Lose Weight")
+                    WeightGoal.MAINTAIN -> tr("维持体重", "Maintain Weight")
+                    WeightGoal.GAIN -> tr("增重", "Gain Weight")
                 },
                 description = when (goal) {
-                    WeightGoal.LOSE -> "每日目标 = TDEE - 500 kcal (每周约减0.5kg)"
-                    WeightGoal.MAINTAIN -> "每日目标 = TDEE"
-                    WeightGoal.GAIN -> "每日目标 = TDEE + 500 kcal (每周约增0.5kg)"
+                    WeightGoal.LOSE -> tr("每日目标 = TDEE - 500 kcal (每周约减0.5kg)", "Daily goal = TDEE - 500 kcal (~0.5 kg/wk loss)")
+                    WeightGoal.MAINTAIN -> tr("每日目标 = TDEE", "Daily goal = TDEE")
+                    WeightGoal.GAIN -> tr("每日目标 = TDEE + 500 kcal (每周约增0.5kg)", "Daily goal = TDEE + 500 kcal (~0.5 kg/wk gain)")
                 }
             )
         }
@@ -451,15 +495,19 @@ private fun GoalPage(vm: OnboardingViewModel) {
         if (vm.weightGoal != WeightGoal.MAINTAIN) {
             var showWeeklyGoalDialog by remember { mutableStateOf(false) }
             PickerRow(
-                label = "每周目标 (可选)",
-                value = if (vm.weeklyGoalStr.isNotEmpty()) "${vm.weeklyGoalStr} kg/周" else "默认 0.5 kg/周",
+                label = tr("每周目标 (可选)", "Weekly Rate (optional)"),
+                value = if (vm.weeklyGoalStr.isNotEmpty()) {
+                    tr("${vm.weeklyGoalStr} kg/周", "${vm.weeklyGoalStr} kg/wk")
+                } else {
+                    tr("默认 0.5 kg/周", "Default 0.5 kg/wk")
+                },
                 onClick = { showWeeklyGoalDialog = true }
             )
 
             if (showWeeklyGoalDialog) {
                 NumberPickerDialog(
-                    title = "每周目标",
-                    unit = "kg/周",
+                    title = tr("每周目标", "Weekly Rate"),
+                    unit = tr("kg/周", "kg/wk"),
                     initialValue = vm.weeklyGoalStr.toDoubleOrNull() ?: 0.5,
                     range = 0.1..2.0,
                     step = 0.1,
@@ -476,8 +524,10 @@ private fun OverviewPage(
     vm: OnboardingViewModel,
     onNavigateToSources: () -> Unit
 ) {
+    val isZh = LocalIsChinese.current
+    val context = LocalContext.current
     val user = vm.buildUser() ?: run {
-        Text("请完善前面的信息", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(tr("请完善前面的信息", "Please complete previous steps"), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
         return
     }
 
@@ -490,24 +540,28 @@ private fun OverviewPage(
     val status = BmiCalc.getNutritionalStatus(bmi, vm.bmiStandard)
 
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        Text("概览", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-        Text("根据您输入的信息，以下是您的卡路里和营养目标", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(tr("概览", "Summary"), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+        Text(
+            tr("根据您输入的信息，以下是您的卡路里和营养目标", "Here are your personalized calorie and nutrition targets"),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
 
         ElevatedCard(
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)
         ) {
             Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text("健康指标", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-                OverviewRow("BMI", "${UnitCalc.formatDecimal(bmi, 1)} (${status.getLabel(vm.bmiStandard)})")
+                Text(tr("健康指标", "Health Metrics"), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                OverviewRow("BMI", "${UnitCalc.formatDecimal(bmi, 1)} (${status.getLabel(vm.bmiStandard, isZh)})")
                 OverviewRow("TDEE", "${tdee.roundToInt()} kcal")
-                OverviewRow("每日目标", "${goal.roundToInt()} kcal")
+                OverviewRow(tr("每日目标", "Daily Goal"), "${goal.roundToInt()} kcal")
 
                 val floor = CalorieGoalCalc.recommendedFloor(user)
                 if (CalorieGoalCalc.isBelowRecommendedFloor(goal, user)) {
                     Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)) {
                         Text(
-                            text = "⚠ 目标低于推荐最低值 ${floor.roundToInt()} kcal",
+                            text = tr("⚠ 目标低于推荐最低值 ${floor.roundToInt()} kcal", "⚠ Goal below recommended ${floor.roundToInt()} kcal floor"),
                             modifier = Modifier.padding(8.dp),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onErrorContainer
@@ -522,11 +576,15 @@ private fun OverviewPage(
             colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)
         ) {
             Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text("营养目标", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-                OverviewRow("碳水目标", "${carbs.roundToInt()}g (60%)")
-                OverviewRow("脂肪目标", "${fat.roundToInt()}g (25%)")
-                OverviewRow("蛋白质目标", "${protein.roundToInt()}g (15%)")
-                Text("参考: WHO TRS 894, p.104", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f))
+                Text(tr("营养目标", "Macro Targets"), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                OverviewRow(tr("碳水目标", "Carbs Goal"), "${carbs.roundToInt()}g (60%)")
+                OverviewRow(tr("脂肪目标", "Fat Goal"), "${fat.roundToInt()}g (25%)")
+                OverviewRow(tr("蛋白质目标", "Protein Goal"), "${protein.roundToInt()}g (15%)")
+                Text(
+                    tr("参考: WHO TRS 894, p.104", "Ref: WHO TRS 894, p.104"),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                )
             }
         }
 
@@ -542,20 +600,24 @@ private fun OverviewPage(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text("科学依据", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-                    Icon(Icons.Filled.ChevronRight, "查看详情", tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
+                    Text(tr("科学依据", "Scientific Basis"), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                    Icon(Icons.Filled.ChevronRight, tr("查看详情", "View details"), tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
                 }
-                Text("查看 IOM 2005 TDEE、WHO BMI/宏量与 2024 MET 原始文献 →", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                Text(
+                    tr("查看 IOM 2005 TDEE、WHO BMI/宏量与 2024 MET 原始文献 →", "View IOM 2005 TDEE, WHO BMI/Macro & 2024 MET references →"),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.primary
+                )
             }
         }
 
-        // 医疗免责声明
+        // Medical disclaimer
         Card(
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)),
             modifier = Modifier.fillMaxWidth()
         ) {
             Text(
-                text = stringResource(R.string.medical_disclaimer),
+                text = context.getString(R.string.medical_disclaimer),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(12.dp)

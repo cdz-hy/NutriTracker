@@ -6,6 +6,9 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.TrendingDown
+import androidx.compose.material.icons.automirrored.filled.TrendingFlat
+import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -21,7 +24,10 @@ import com.example.nutritracker.ui.components.WeightChartPoint
 import com.example.nutritracker.ui.components.WeightLineChart
 import com.example.nutritracker.ui.theme.Dimens
 import com.example.nutritracker.ui.theme.StaggeredFadeIn
+import com.example.nutritracker.util.LocalIsChinese
+import com.example.nutritracker.util.LocaleHelper
 import com.example.nutritracker.util.UnitCalc
+import com.example.nutritracker.util.tr
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 
@@ -34,6 +40,7 @@ fun WeightHistoryScreen(
     val weightLogs by vm.weightLogs.collectAsStateWithLifecycle()
     val user by vm.user.collectAsStateWithLifecycle()
     val imperial = user?.usesImperialUnits ?: false
+    val isZh = LocalIsChinese.current
 
     var showAddDialog by remember { mutableStateOf(false) }
     var deleteConfirmDate by remember { mutableStateOf<LocalDate?>(null) }
@@ -41,10 +48,10 @@ fun WeightHistoryScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("体重历史", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold) },
+                title = { Text(tr("体重历史", "Weight History"), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = tr("返回", "Back"))
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surface)
@@ -55,8 +62,8 @@ fun WeightHistoryScreen(
                 onClick = { showAddDialog = true },
                 containerColor = MaterialTheme.colorScheme.primaryContainer,
                 contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                icon = { Icon(Icons.Filled.Add, "添加") },
-                text = { Text("记录体重") }
+                icon = { Icon(Icons.Filled.Add, tr("添加", "Add")) },
+                text = { Text(tr("记录体重", "Log Weight")) }
             )
         }
     ) { padding ->
@@ -71,9 +78,9 @@ fun WeightHistoryScreen(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    Icon(Icons.Filled.TrendingFlat, null, modifier = Modifier.size(64.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text("暂无体重记录", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text("点击右下角按钮添加或补录历史体重", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Icon(Icons.AutoMirrored.Filled.TrendingFlat, null, modifier = Modifier.size(64.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(tr("暂无体重记录", "No weight entries yet"), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(tr("点击右下角按钮添加或补录历史体重", "Tap + to log your weight"), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         } else {
@@ -95,7 +102,7 @@ fun WeightHistoryScreen(
                             modifier = Modifier.padding(Dimens.CardInnerPadding),
                             verticalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
-                            Text("体重变化曲线", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                            Text(tr("体重变化曲线", "Weight Trend"), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
                             WeightLineChart(
                                 points = weightLogs.take(90).map { WeightChartPoint(it.date, it.weightKg) },
                                 targetWeightKg = user?.targetWeightKg,
@@ -118,13 +125,13 @@ fun WeightHistoryScreen(
                             elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp)
                         ) {
                             Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                                Text("近期对比", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                                Text(tr("近期对比", "Recent Change"), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onPrimaryContainer)
                                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                                     Icon(
                                         when {
-                                            diff > 0 -> Icons.Filled.TrendingUp
-                                            diff < 0 -> Icons.Filled.TrendingDown
-                                            else -> Icons.Filled.TrendingFlat
+                                            diff > 0 -> Icons.AutoMirrored.Filled.TrendingUp
+                                            diff < 0 -> Icons.AutoMirrored.Filled.TrendingDown
+                                            else -> Icons.AutoMirrored.Filled.TrendingFlat
                                         },
                                         contentDescription = null,
                                         modifier = Modifier.size(32.dp),
@@ -139,9 +146,9 @@ fun WeightHistoryScreen(
                                         )
                                         Text(
                                             text = when {
-                                                diff > 0 -> "↑ 增加 ${UnitCalc.formatWeight(diff, imperial)}"
-                                                diff < 0 -> "↓ 减少 ${UnitCalc.formatWeight(-diff, imperial)}"
-                                                else -> "→ 持平"
+                                                diff > 0 -> tr("↑ 增加 ${UnitCalc.formatWeight(diff, imperial)}", "↑ +${UnitCalc.formatWeight(diff, imperial)}")
+                                                diff < 0 -> tr("↓ 减少 ${UnitCalc.formatWeight(-diff, imperial)}", "↓ -${UnitCalc.formatWeight(-diff, imperial)}")
+                                                else -> tr("→ 持平", "→ No change")
                                             },
                                             style = MaterialTheme.typography.bodyMedium,
                                             color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
@@ -155,7 +162,7 @@ fun WeightHistoryScreen(
 
                 item(key = "list_title") {
                     Text(
-                        text = "历史记录",
+                        text = tr("历史记录", "Entries"),
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold,
                         modifier = Modifier.padding(top = 4.dp)
@@ -178,7 +185,7 @@ fun WeightHistoryScreen(
                                 },
                                 trailingContent = {
                                     IconButton(onClick = { deleteConfirmDate = log.date }, modifier = Modifier.size(40.dp)) {
-                                        Icon(Icons.Filled.Delete, contentDescription = "删除", tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(20.dp))
+                                        Icon(Icons.Filled.Delete, contentDescription = tr("删除", "Delete"), tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(20.dp))
                                     }
                                 },
                                 colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)
@@ -201,13 +208,13 @@ fun WeightHistoryScreen(
 
         AlertDialog(
             onDismissRequest = { showAddDialog = false },
-            title = { Text("记录体重", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold) },
+            title = { Text(tr("记录体重", "Log Weight"), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     OutlinedTextField(
                         value = weightStr,
                         onValueChange = { weightStr = it },
-                        label = { Text("体重 (${UnitCalc.weightUnitLabel(imperial)})") },
+                        label = { Text(tr("体重 (${UnitCalc.weightUnitLabel(imperial)})", "Weight (${UnitCalc.weightUnitLabel(imperial)})")) },
                         singleLine = true,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                         modifier = Modifier.fillMaxWidth()
@@ -218,7 +225,7 @@ fun WeightHistoryScreen(
                     ) {
                         Icon(Icons.Filled.CalendarMonth, null, Modifier.size(16.dp))
                         Spacer(Modifier.width(6.dp))
-                        Text("日期：${logDate.format(DateTimeFormatter.ISO_LOCAL_DATE)}")
+                        Text(tr("日期：${LocaleHelper.formatFullDate(logDate, true)}", "Date: ${LocaleHelper.formatFullDate(logDate, false)}"))
                     }
                 }
             },
@@ -229,9 +236,9 @@ fun WeightHistoryScreen(
                         showAddDialog = false
                     },
                     enabled = isValid
-                ) { Text("保存") }
+                ) { Text(tr("保存", "Save")) }
             },
-            dismissButton = { TextButton(onClick = { showAddDialog = false }) { Text("取消") } },
+            dismissButton = { TextButton(onClick = { showAddDialog = false }) { Text(tr("取消", "Cancel")) } },
             containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
         )
 
@@ -247,15 +254,22 @@ fun WeightHistoryScreen(
     deleteConfirmDate?.let { date ->
         AlertDialog(
             onDismissRequest = { deleteConfirmDate = null },
-            title = { Text("确认删除") },
-            text = { Text("确定要删除 ${date.format(DateTimeFormatter.ISO_LOCAL_DATE)} 的体重记录吗？") },
+            title = { Text(tr("确认删除", "Delete Entry")) },
+            text = {
+                Text(
+                    tr(
+                        "确定要删除 ${date.format(DateTimeFormatter.ISO_LOCAL_DATE)} 的体重记录吗？",
+                        "Delete weight entry for ${date.format(DateTimeFormatter.ISO_LOCAL_DATE)}?"
+                    )
+                )
+            },
             confirmButton = {
                 TextButton(
                     onClick = { vm.deleteWeightLog(date); deleteConfirmDate = null },
                     colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
-                ) { Text("删除") }
+                ) { Text(tr("删除", "Delete")) }
             },
-            dismissButton = { TextButton(onClick = { deleteConfirmDate = null }) { Text("取消") } },
+            dismissButton = { TextButton(onClick = { deleteConfirmDate = null }) { Text(tr("取消", "Cancel")) } },
             containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
         )
     }

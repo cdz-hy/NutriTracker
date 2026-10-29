@@ -30,7 +30,6 @@ import com.example.nutritracker.ui.components.NumberPickerDialog
 import com.example.nutritracker.ui.theme.*
 import com.example.nutritracker.util.*
 import java.time.format.DateTimeFormatter
-import java.util.Locale
 import kotlin.math.roundToInt
 
 @Composable
@@ -42,6 +41,7 @@ fun ProfileScreen(
 ) {
     val user by vm.user.collectAsStateWithLifecycle()
     val useKj by vm.useKj.collectAsStateWithLifecycle()
+    val isZh = LocalIsChinese.current
 
     var showBirthdayDialog by remember { mutableStateOf(false) }
     var showHeightDialog by remember { mutableStateOf(false) }
@@ -52,10 +52,8 @@ fun ProfileScreen(
     var showGoalDialog by remember { mutableStateOf(false) }
     var showWeeklyGoalDialog by remember { mutableStateOf(false) }
     var showCaloriesProfileDialog by remember { mutableStateOf(false) }
-    var bmiStandard by remember {
-        mutableStateOf(
-            if (Locale.getDefault().language == "zh") BmiStandard.CHINA else BmiStandard.WHO
-        )
+    var bmiStandard by remember(isZh) {
+        mutableStateOf(if (isZh) BmiStandard.CHINA else BmiStandard.WHO)
     }
 
     Column(
@@ -66,7 +64,7 @@ fun ProfileScreen(
         verticalArrangement = Arrangement.spacedBy(Dimens.CardSpacing)
     ) {
         Text(
-            text = "个人资料",
+            text = tr("个人资料", "Profile"),
             style = MaterialTheme.typography.headlineMedium,
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.onSurface,
@@ -76,7 +74,7 @@ fun ProfileScreen(
         val u = user
         if (u == null) {
             Box(modifier = Modifier.fillMaxWidth().height(200.dp), contentAlignment = Alignment.Center) {
-                Text("请先完成引导设置", style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(tr("请先完成引导设置", "Please finish setup first"), style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             return
         }
@@ -112,7 +110,7 @@ fun ProfileScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "BMI 指数",
+                        text = tr("BMI 指数", "BMI Index"),
                         style = MaterialTheme.typography.labelLarge,
                         color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
                     )
@@ -143,7 +141,7 @@ fun ProfileScreen(
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Text(
-                                        text = if (std == BmiStandard.CHINA) "中国标准" else "世界标准",
+                                        text = if (std == BmiStandard.CHINA) tr("中国标准", "WGOC") else tr("世界标准", "WHO"),
                                         style = MaterialTheme.typography.labelSmall,
                                         fontWeight = if (active) FontWeight.Bold else FontWeight.Normal,
                                         color = MaterialTheme.colorScheme.onPrimaryContainer
@@ -155,7 +153,7 @@ fun ProfileScreen(
                         IconButton(onClick = onNavigateToSources, modifier = Modifier.size(28.dp)) {
                             Icon(
                                 imageVector = Icons.AutoMirrored.Filled.HelpOutline,
-                                contentDescription = "查看 BMI 科学依据",
+                                contentDescription = tr("查看 BMI 科学依据", "View BMI references"),
                                 tint = MaterialTheme.colorScheme.onPrimaryContainer,
                                 modifier = Modifier.size(18.dp)
                             )
@@ -174,7 +172,7 @@ fun ProfileScreen(
                         color = MaterialTheme.colorScheme.onPrimaryContainer
                     )
                     Text(
-                        text = status.getLabel(bmiStandard),
+                        text = status.getLabel(bmiStandard, isZh),
                         style = MaterialTheme.typography.titleMedium,
                         color = MaterialTheme.colorScheme.onPrimaryContainer,
                         modifier = Modifier.padding(bottom = 4.dp)
@@ -185,86 +183,89 @@ fun ProfileScreen(
             }
         }
 
-        // 身体数据
-        SectionCard(title = "身体数据") {
+        // Body Data
+        SectionCard(title = tr("身体数据", "Body Metrics")) {
             EditableProfileRow(
                 icon = Icons.Filled.Cake,
-                label = "生日",
-                value = "${u.birthday.format(DateTimeFormatter.ISO_LOCAL_DATE)} (${AgeCalc.getAge(u.birthday)}岁)",
+                label = tr("生日", "Birthday"),
+                value = tr(
+                    "${u.birthday.format(DateTimeFormatter.ISO_LOCAL_DATE)} (${AgeCalc.getAge(u.birthday)}岁)",
+                    "${u.birthday.format(DateTimeFormatter.ISO_LOCAL_DATE)} (${AgeCalc.getAge(u.birthday)} yrs)"
+                ),
                 onClick = { showBirthdayDialog = true }
             )
             EditableProfileRow(
                 icon = Icons.Filled.Wc,
-                label = "性别",
+                label = tr("性别", "Sex"),
                 value = when (u.gender) {
-                    Gender.MALE -> "男"
-                    Gender.FEMALE -> "女"
-                    Gender.NON_BINARY -> "非二元"
+                    Gender.MALE -> tr("男", "Male")
+                    Gender.FEMALE -> tr("女", "Female")
+                    Gender.NON_BINARY -> tr("非二元", "Non-binary")
                 },
                 onClick = { showGenderDialog = true }
             )
             if (u.gender == Gender.NON_BINARY) {
                 EditableProfileRow(
                     icon = Icons.Filled.Tune,
-                    label = "卡路里计算",
+                    label = tr("卡路里计算", "Calorie Profile"),
                     value = when (u.caloriesProfile) {
-                        CaloriesProfile.AVERAGED -> "平均值"
-                        CaloriesProfile.ESTROGEN_TYPICAL -> "雌激素典型"
-                        CaloriesProfile.TESTOSTERONE_TYPICAL -> "睾酮典型"
+                        CaloriesProfile.AVERAGED -> tr("平均值", "Averaged")
+                        CaloriesProfile.ESTROGEN_TYPICAL -> tr("雌激素典型", "Estrogen-typical")
+                        CaloriesProfile.TESTOSTERONE_TYPICAL -> tr("睾酮典型", "Testosterone-typical")
                     },
                     onClick = { showCaloriesProfileDialog = true }
                 )
             }
             EditableProfileRow(
                 icon = Icons.Filled.Height,
-                label = "身高",
+                label = tr("身高", "Height"),
                 value = UnitCalc.formatHeight(u.heightCm, imperial),
                 onClick = { showHeightDialog = true }
             )
             EditableProfileRow(
                 icon = Icons.Filled.MonitorWeight,
-                label = "体重",
+                label = tr("体重", "Weight"),
                 value = UnitCalc.formatWeight(u.weightKg, imperial),
                 onClick = { showWeightDialog = true }
             )
         }
 
-        // 目标设置
-        SectionCard(title = "目标设置") {
+        // Goals
+        SectionCard(title = tr("目标设置", "Goals & Activity")) {
             EditableProfileRow(
                 icon = Icons.AutoMirrored.Filled.DirectionsRun,
-                label = "活动水平",
+                label = tr("活动水平", "Activity Level"),
                 value = when (u.activityLevel) {
-                    ActivityLevel.SEDENTARY -> "久坐不动"
-                    ActivityLevel.LOW_ACTIVE -> "低度活跃"
-                    ActivityLevel.ACTIVE -> "活跃"
-                    ActivityLevel.VERY_ACTIVE -> "非常活跃"
+                    ActivityLevel.SEDENTARY -> tr("久坐不动", "Sedentary")
+                    ActivityLevel.LOW_ACTIVE -> tr("低度活跃", "Low Active")
+                    ActivityLevel.ACTIVE -> tr("活跃", "Active")
+                    ActivityLevel.VERY_ACTIVE -> tr("非常活跃", "Very Active")
                 },
                 onClick = { showActivityDialog = true }
             )
             EditableProfileRow(
                 icon = Icons.Filled.FitnessCenter,
-                label = "体重目标",
+                label = tr("体重目标", "Weight Goal"),
                 value = when (u.weightGoal) {
-                    WeightGoal.LOSE -> "减重"
-                    WeightGoal.MAINTAIN -> "维持体重"
-                    WeightGoal.GAIN -> "增重"
+                    WeightGoal.LOSE -> tr("减重", "Lose Weight")
+                    WeightGoal.MAINTAIN -> tr("维持体重", "Maintain")
+                    WeightGoal.GAIN -> tr("增重", "Gain Weight")
                 },
                 onClick = { showGoalDialog = true }
             )
             if (u.weightGoal != WeightGoal.MAINTAIN) {
                 EditableProfileRow(
                     icon = Icons.Filled.Flag,
-                    label = "目标体重",
-                    value = u.targetWeightKg?.let { UnitCalc.formatWeight(it, imperial) } ?: "未设置",
+                    label = tr("目标体重", "Target Weight"),
+                    value = u.targetWeightKg?.let { UnitCalc.formatWeight(it, imperial) } ?: tr("未设置", "Not set"),
                     onClick = { showTargetWeightDialog = true }
                 )
                 EditableProfileRow(
                     icon = Icons.Filled.Speed,
-                    label = "每周目标",
+                    label = tr("每周目标", "Weekly Rate"),
                     value = u.weeklyWeightGoalKg?.let {
-                        "${UnitCalc.formatWeight(it, imperial)}/周"
-                    } ?: "默认",
+                        tr("${UnitCalc.formatWeight(it, imperial)}/周", "${UnitCalc.formatWeight(it, imperial)}/wk")
+                    } ?: tr("默认", "Default"),
                     onClick = { showWeeklyGoalDialog = true }
                 )
             }
@@ -294,13 +295,16 @@ fun ProfileScreen(
                 )
             }
             Text(
-                text = "TDEE = 每日总能量消耗，即维持当前体重所需的能量",
+                text = tr(
+                    "TDEE = 每日总能量消耗，即维持当前体重所需的能量",
+                    "TDEE = Total Daily Energy Expenditure needed to maintain weight"
+                ),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
             )
         }
 
-        // 卡路里渐近减速
+        // Calories Taper
         ElevatedCard(
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
@@ -308,8 +312,8 @@ fun ProfileScreen(
             shape = MaterialTheme.shapes.large
         ) {
             ListItem(
-                headlineContent = { Text("卡路里渐近减速", fontWeight = FontWeight.Medium) },
-                supportingContent = { Text("接近目标体重时逐步减少调整幅度") },
+                headlineContent = { Text(tr("卡路里渐近减速", "Calorie Goal Taper"), fontWeight = FontWeight.Medium) },
+                supportingContent = { Text(tr("接近目标体重时逐步减少调整幅度", "Gradually ease calorie deficit/surplus near goal weight")) },
                 leadingContent = {
                     Icon(Icons.AutoMirrored.Filled.TrendingDown, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(Dimens.IconSizeMedium))
                 },
@@ -323,7 +327,7 @@ fun ProfileScreen(
             )
         }
 
-        // 体重历史入口
+        // Weight History
         ElevatedCard(
             modifier = Modifier
                 .fillMaxWidth()
@@ -333,15 +337,15 @@ fun ProfileScreen(
             shape = MaterialTheme.shapes.large
         ) {
             ListItem(
-                headlineContent = { Text("体重历史与趋势图", fontWeight = FontWeight.Medium) },
-                supportingContent = { Text("查看折线走势及补录历史体重") },
+                headlineContent = { Text(tr("体重历史与趋势图", "Weight History & Chart"), fontWeight = FontWeight.Medium) },
+                supportingContent = { Text(tr("查看折线走势及补录历史体重", "View trend line and log past weights")) },
                 leadingContent = { Icon(Icons.Filled.MonitorWeight, null, tint = MaterialTheme.colorScheme.primary) },
                 trailingContent = { Icon(Icons.Filled.ChevronRight, null) },
                 colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)
             )
         }
 
-        // 食物库与自制食谱入口
+        // Food Library & Recipes
         ElevatedCard(
             modifier = Modifier
                 .fillMaxWidth()
@@ -351,9 +355,9 @@ fun ProfileScreen(
             shape = MaterialTheme.shapes.large
         ) {
             ListItem(
-                headlineContent = { Text("食物库与自制食谱", fontWeight = FontWeight.Medium) },
-                supportingContent = { Text("收藏常用食物、组合自定义营养套餐") },
-                leadingContent = { Icon(Icons.Filled.MenuBook, null, tint = MaterialTheme.colorScheme.primary) },
+                headlineContent = { Text(tr("食物库与自制食谱", "Food Library & Recipes"), fontWeight = FontWeight.Medium) },
+                supportingContent = { Text(tr("收藏常用食物、组合自定义营养套餐", "Favorite foods and build custom meal recipes")) },
+                leadingContent = { Icon(Icons.AutoMirrored.Filled.MenuBook, null, tint = MaterialTheme.colorScheme.primary) },
                 trailingContent = { Icon(Icons.Filled.ChevronRight, null) },
                 colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)
             )
@@ -371,7 +375,7 @@ fun ProfileScreen(
 
         if (showHeightDialog) {
             NumberPickerDialog(
-                title = "身高",
+                title = tr("身高", "Height"),
                 unit = UnitCalc.heightUnitLabel(imperial),
                 initialValue = if (imperial) UnitCalc.cmToInches(u.heightCm) else u.heightCm,
                 range = if (imperial) 39.0..99.0 else 100.0..250.0,
@@ -387,7 +391,7 @@ fun ProfileScreen(
 
         if (showWeightDialog) {
             NumberPickerDialog(
-                title = "体重",
+                title = tr("体重", "Weight"),
                 unit = UnitCalc.weightUnitLabel(imperial),
                 initialValue = if (imperial) UnitCalc.kgToLbs(u.weightKg) else u.weightKg,
                 range = if (imperial) 66.0..660.0 else 30.0..300.0,
@@ -404,7 +408,7 @@ fun ProfileScreen(
         if (showTargetWeightDialog) {
             val baseTarget = u.targetWeightKg ?: u.weightKg
             NumberPickerDialog(
-                title = "目标体重",
+                title = tr("目标体重", "Target Weight"),
                 unit = UnitCalc.weightUnitLabel(imperial),
                 initialValue = if (imperial) UnitCalc.kgToLbs(baseTarget) else baseTarget,
                 range = if (imperial) 66.0..660.0 else 30.0..300.0,
@@ -421,8 +425,8 @@ fun ProfileScreen(
         if (showWeeklyGoalDialog) {
             val baseWeekly = u.weeklyWeightGoalKg ?: 0.5
             NumberPickerDialog(
-                title = "每周目标",
-                unit = "${UnitCalc.weightUnitLabel(imperial)}/周",
+                title = tr("每周目标", "Weekly Rate"),
+                unit = tr("${UnitCalc.weightUnitLabel(imperial)}/周", "${UnitCalc.weightUnitLabel(imperial)}/wk"),
                 initialValue = if (imperial) UnitCalc.kgToLbs(baseWeekly) else baseWeekly,
                 range = if (imperial) 0.2..4.4 else 0.1..2.0,
                 step = 0.1,
@@ -437,12 +441,12 @@ fun ProfileScreen(
 
         if (showGenderDialog) {
             SelectionDialog(
-                title = "性别",
+                title = tr("性别", "Sex"),
                 options = Gender.entries.map {
                     when (it) {
-                        Gender.MALE -> "男"
-                        Gender.FEMALE -> "女"
-                        Gender.NON_BINARY -> "非二元"
+                        Gender.MALE -> tr("男", "Male")
+                        Gender.FEMALE -> tr("女", "Female")
+                        Gender.NON_BINARY -> tr("非二元", "Non-binary")
                     }
                 },
                 selectedIndex = Gender.entries.indexOf(u.gender),
@@ -453,8 +457,13 @@ fun ProfileScreen(
 
         if (showActivityDialog) {
             SelectionDialog(
-                title = "活动水平",
-                options = listOf("久坐不动", "低度活跃", "活跃", "非常活跃"),
+                title = tr("活动水平", "Activity Level"),
+                options = listOf(
+                    tr("久坐不动", "Sedentary"),
+                    tr("低度活跃", "Low Active"),
+                    tr("活跃", "Active"),
+                    tr("非常活跃", "Very Active")
+                ),
                 selectedIndex = ActivityLevel.entries.indexOf(u.activityLevel),
                 onDismiss = { showActivityDialog = false },
                 onConfirm = { vm.updateActivityLevel(ActivityLevel.entries[it]); showActivityDialog = false }
@@ -463,8 +472,12 @@ fun ProfileScreen(
 
         if (showGoalDialog) {
             SelectionDialog(
-                title = "体重目标",
-                options = listOf("减重", "维持体重", "增重"),
+                title = tr("体重目标", "Weight Goal"),
+                options = listOf(
+                    tr("减重", "Lose Weight"),
+                    tr("维持体重", "Maintain Weight"),
+                    tr("增重", "Gain Weight")
+                ),
                 selectedIndex = WeightGoal.entries.indexOf(u.weightGoal),
                 onDismiss = { showGoalDialog = false },
                 onConfirm = { vm.updateWeightGoal(WeightGoal.entries[it]); showGoalDialog = false }
@@ -473,8 +486,12 @@ fun ProfileScreen(
 
         if (showCaloriesProfileDialog) {
             SelectionDialog(
-                title = "卡路里计算",
-                options = listOf("平均值", "雌激素典型", "睾酮典型"),
+                title = tr("卡路里计算", "Calorie Profile"),
+                options = listOf(
+                    tr("平均值", "Averaged"),
+                    tr("雌激素典型", "Estrogen-typical"),
+                    tr("睾酮典型", "Testosterone-typical")
+                ),
                 selectedIndex = CaloriesProfile.entries.indexOf(u.caloriesProfile),
                 onDismiss = { showCaloriesProfileDialog = false },
                 onConfirm = { vm.updateCaloriesProfile(CaloriesProfile.entries[it]); showCaloriesProfileDialog = false }
@@ -487,21 +504,21 @@ fun ProfileScreen(
 private fun BmiSegmentedBar(bmi: Double, standard: BmiStandard) {
     val segments = if (standard == BmiStandard.CHINA) {
         listOf(
-            Triple(Color(0xFF2196F3), 18.5f, "偏瘦"),
-            Triple(Color(0xFF4CAF50), 24f, "正常"),
-            Triple(Color(0xFFFFC107), 28f, "超重"),
-            Triple(Color(0xFFFF9800), 32f, "肥胖I"),
-            Triple(Color(0xFFFF5722), 38f, "肥胖II"),
-            Triple(Color(0xFFF44336), 50f, "肥胖III")
+            Triple(Color(0xFF2196F3), 18.5f, tr("偏瘦", "Low")),
+            Triple(Color(0xFF4CAF50), 24f, tr("正常", "Norm")),
+            Triple(Color(0xFFFFC107), 28f, tr("超重", "Over")),
+            Triple(Color(0xFFFF9800), 32f, tr("肥胖I", "Ob I")),
+            Triple(Color(0xFFFF5722), 38f, tr("肥胖II", "Ob II")),
+            Triple(Color(0xFFF44336), 50f, tr("肥胖III", "Ob III"))
         )
     } else {
         listOf(
-            Triple(Color(0xFF2196F3), 18.5f, "偏瘦"),
-            Triple(Color(0xFF4CAF50), 25f, "正常"),
-            Triple(Color(0xFFFFC107), 30f, "超重"),
-            Triple(Color(0xFFFF9800), 35f, "肥胖I"),
-            Triple(Color(0xFFFF5722), 40f, "肥胖II"),
-            Triple(Color(0xFFF44336), 50f, "肥胖III")
+            Triple(Color(0xFF2196F3), 18.5f, tr("偏瘦", "Low")),
+            Triple(Color(0xFF4CAF50), 25f, tr("正常", "Norm")),
+            Triple(Color(0xFFFFC107), 30f, tr("超重", "Over")),
+            Triple(Color(0xFFFF9800), 35f, tr("肥胖I", "Ob I")),
+            Triple(Color(0xFFFF5722), 40f, tr("肥胖II", "Ob II")),
+            Triple(Color(0xFFF44336), 50f, tr("肥胖III", "Ob III"))
         )
     }
 
@@ -647,8 +664,8 @@ private fun SelectionDialog(
                 }
             }
         },
-        confirmButton = { Button(onClick = { onConfirm(selected) }) { Text("确定") } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } },
+        confirmButton = { Button(onClick = { onConfirm(selected) }) { Text(tr("确定", "Confirm")) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(tr("取消", "Cancel")) } },
         containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
     )
 }

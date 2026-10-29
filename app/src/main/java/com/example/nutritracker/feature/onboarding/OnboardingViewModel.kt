@@ -9,9 +9,13 @@ import com.example.nutritracker.data.repository.SettingsRepository
 import com.example.nutritracker.data.repository.UserRepository
 import com.example.nutritracker.data.repository.WeightLogRepository
 import com.example.nutritracker.util.BmiStandard
+import com.example.nutritracker.util.LocaleHelper
 import com.example.nutritracker.widget.NutriTrackerWidgetUpdater
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 import javax.inject.Inject
@@ -24,6 +28,9 @@ class OnboardingViewModel @Inject constructor(
     private val settingsRepo: SettingsRepository
 ) : ViewModel() {
 
+    val appLanguage: StateFlow<AppLanguage> = settingsRepo.appLanguage
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), AppLanguage.SYSTEM)
+
     var gender by mutableStateOf(Gender.MALE)
     var caloriesProfile by mutableStateOf(CaloriesProfile.AVERAGED)
     var birthdayStr by mutableStateOf("2000-01-01")
@@ -34,10 +41,17 @@ class OnboardingViewModel @Inject constructor(
     var weightGoal by mutableStateOf(WeightGoal.MAINTAIN)
     var weeklyGoalStr by mutableStateOf("")
     var bmiStandard by mutableStateOf(
-        if (java.util.Locale.getDefault().language == "zh") BmiStandard.CHINA else BmiStandard.WHO
+        if (LocaleHelper.isChinese(appContext)) BmiStandard.CHINA else BmiStandard.WHO
     )
     var isSaving by mutableStateOf(false)
         private set
+
+    fun setAppLanguage(language: AppLanguage) {
+        bmiStandard = if (LocaleHelper.isChinese(language)) BmiStandard.CHINA else BmiStandard.WHO
+        viewModelScope.launch {
+            settingsRepo.setAppLanguage(language)
+        }
+    }
 
     fun canProceed(page: Int): Boolean = !isSaving && getValidationError(page) == null
 
@@ -51,29 +65,37 @@ class OnboardingViewModel @Inject constructor(
     }
 
     private fun validatePage0(): String? {
-        val birthday = parseBirthday() ?: return "请输入有效的生日日期 (YYYY-MM-DD)"
+        val isZh = LocaleHelper.isChinese(appContext)
+        val birthday = parseBirthday() ?: return LocaleHelper.tr(
+            isZh,
+            "请输入有效的生日日期 (YYYY-MM-DD)",
+            "Please enter a valid birthday (YYYY-MM-DD)"
+        )
         val age = java.time.Period.between(birthday, LocalDate.now()).years
-        if (age < 10) return "年龄不能小于 10 岁"
-        if (age > 120) return "年龄不能大于 120 岁"
+        if (age < 10) return LocaleHelper.tr(isZh, "年龄不能小于 10 岁", "Age must be at least 10")
+        if (age > 120) return LocaleHelper.tr(isZh, "年龄不能大于 120 岁", "Age must be at most 120")
         return null
     }
 
     private fun validatePage1(): String? {
-        val height = heightStr.toDoubleOrNull() ?: return "请输入身高"
-        val weight = weightStr.toDoubleOrNull() ?: return "请输入体重"
-        if (height < 100) return "身高不能小于 100 cm"
-        if (height > 250) return "身高不能大于 250 cm"
-        if (weight < 30) return "体重不能小于 30 kg"
-        if (weight > 300) return "体重不能大于 300 kg"
+        val isZh = LocaleHelper.isChinese(appContext)
+        val height = heightStr.toDoubleOrNull() ?: return LocaleHelper.tr(isZh, "请输入身高", "Please enter height")
+        val weight = weightStr.toDoubleOrNull() ?: return LocaleHelper.tr(isZh, "请输入体重", "Please enter weight")
+        if (height < 100) return LocaleHelper.tr(isZh, "身高不能小于 100 cm", "Height must be >= 100 cm")
+        if (height > 250) return LocaleHelper.tr(isZh, "身高不能大于 250 cm", "Height must be <= 250 cm")
+        if (weight < 30) return LocaleHelper.tr(isZh, "体重不能小于 30 kg", "Weight must be >= 30 kg")
+        if (weight > 300) return LocaleHelper.tr(isZh, "体重不能大于 300 kg", "Weight must be <= 300 kg")
         val targetWeight = targetWeightStr.toDoubleOrNull()
         if (targetWeight != null) {
-            if (targetWeight < 30) return "目标体重不能小于 30 kg"
-            if (targetWeight > 300) return "目标体重不能大于 300 kg"
+            if (targetWeight < 30) return LocaleHelper.tr(isZh, "目标体重不能小于 30 kg", "Target weight must be >= 30 kg")
+            if (targetWeight > 300) return LocaleHelper.tr(isZh, "目标体重不能大于 300 kg", "Target weight must be <= 300 kg")
         }
         return null
     }
 
-    private fun validatePage4(): String? = if (buildUser() == null) "请完善前面的信息" else null
+    private fun validatePage4(): String? = if (buildUser() == null) {
+        LocaleHelper.tr(LocaleHelper.isChinese(appContext), "请完善前面的信息", "Please complete previous steps")
+    } else null
 
     private fun parseBirthday(): LocalDate? = try {
         LocalDate.parse(birthdayStr)
