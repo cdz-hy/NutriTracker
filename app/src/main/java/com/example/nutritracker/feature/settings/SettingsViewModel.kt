@@ -5,9 +5,11 @@ import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.nutritracker.data.DataExportManager
+import com.example.nutritracker.data.entity.AppLanguage
 import com.example.nutritracker.data.entity.ThemeMode
 import com.example.nutritracker.data.repository.SettingsRepository
 import com.example.nutritracker.data.repository.UserRepository
+import com.example.nutritracker.util.LocaleHelper
 import com.example.nutritracker.widget.NutriTrackerWidgetUpdater
 import com.example.nutritracker.worker.ReminderScheduler
 import com.google.gson.Gson
@@ -38,6 +40,7 @@ data class SettingsState(
     val aiModel: String = "",
     val aiAutoConfirm: Boolean = false,
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
+    val appLanguage: AppLanguage = AppLanguage.SYSTEM,
     val dynamicColorEnabled: Boolean = true,
     val useKj: Boolean = false,
     val usesImperialUnits: Boolean = false,
@@ -61,7 +64,13 @@ class SettingsViewModel @Inject constructor(
 
     private data class CalcPart(val dayBnd: Int, val kcalAdj: Double, val carb: Double, val fat: Double, val protein: Double)
     private data class AiPart(val waterGoal: Int, val quickWater: List<Int>, val apiKey: String, val baseUrl: String, val model: String, val autoConfirm: Boolean)
-    private data class PrefsPart(val theme: ThemeMode, val dynamicColor: Boolean, val useKj: Boolean, val imperial: Boolean)
+    private data class PrefsPart(
+        val theme: ThemeMode,
+        val language: AppLanguage,
+        val dynamicColor: Boolean,
+        val useKj: Boolean,
+        val imperial: Boolean
+    )
     private data class ReminderPart(val mealOn: Boolean, val bMin: Int, val lMin: Int, val dMin: Int, val waterOn: Boolean, val waterInterval: Int)
 
     private val calcFlow = combine(
@@ -81,11 +90,12 @@ class SettingsViewModel @Inject constructor(
 
     private val prefsFlow = combine(
         settingsRepo.themeMode,
+        settingsRepo.appLanguage,
         settingsRepo.dynamicColorEnabled,
         settingsRepo.useKj,
         userRepo.getUserFlow()
-    ) { tm, dc, kj, u ->
-        PrefsPart(tm, dc, kj, u?.usesImperialUnits ?: false)
+    ) { tm, lang, dc, kj, u ->
+        PrefsPart(tm, lang, dc, kj, u?.usesImperialUnits ?: false)
     }
 
     private val reminderFlow = combine(
@@ -114,6 +124,7 @@ class SettingsViewModel @Inject constructor(
             aiModel = ai.model,
             aiAutoConfirm = ai.autoConfirm,
             themeMode = prefs.theme,
+            appLanguage = prefs.language,
             dynamicColorEnabled = prefs.dynamicColor,
             useKj = prefs.useKj,
             usesImperialUnits = prefs.imperial,
@@ -173,6 +184,14 @@ class SettingsViewModel @Inject constructor(
 
     fun setThemeMode(mode: ThemeMode) {
         viewModelScope.launch { settingsRepo.setThemeMode(mode) }
+    }
+
+    fun setAppLanguage(language: AppLanguage) {
+        viewModelScope.launch {
+            settingsRepo.setAppLanguage(language)
+            val localizedCtx = LocaleHelper.localizedContext(app, language)
+            NutriTrackerWidgetUpdater.enqueueUpdate(localizedCtx)
+        }
     }
 
     fun setDynamicColorEnabled(enabled: Boolean) {
@@ -254,19 +273,25 @@ class SettingsViewModel @Inject constructor(
         val cleanUrl = baseUrl.trim().trimEnd('/')
         val cleanKey = apiKey.trim()
         val cleanModel = model.trim()
+        val isZh = LocaleHelper.isChinese(app)
         if (cleanKey.isBlank() || cleanUrl.isBlank() || cleanModel.isBlank()) {
-            _testState.value = TestStatus.FAILURE to "请填写完整的 API Key、Base URL 和模型名称"
+            _testState.value = TestStatus.FAILURE to LocaleHelper.tr(
+                isZh,
+                "请填写完整的 API Key、Base URL 和模型名称",
+                "Please fill in API Key, Base URL, and model name"
+            )
             return
         }
 
         viewModelScope.launch {
-            _testState.value = TestStatus.TESTING to "正在测试连接..."
+            _testState.value = TestStatus.TESTING to LocaleHelper.tr(isZh, "正在测试连接...", "Testing connection...")
             try {
                 val result = withContext(Dispatchers.IO) {
+                    val prompt = LocaleHelper.tr(isZh, "回复OK两个字", "Reply with OK")
                     val requestBody = gson.toJson(
                         mapOf(
                             "model" to cleanModel,
-                            "messages" to listOf(mapOf("role" to "user", "content" to "回复OK两个字")),
+                            "messages" to listOf(mapOf("role" to "user", "content" to prompt)),
                             "max_tokens" to 10
                         )
                     )
@@ -288,20 +313,36 @@ class SettingsViewModel @Inject constructor(
                         val message = choices?.firstOrNull()?.get("message") as? Map<*, *>
                         val content = message?.get("content") as? String
                         if (content == null) {
-                            return@withContext TestStatus.FAILURE to "API 返回格式异常: ${body.take(150)}"
+                            return@withContext TestStatus.FAILURE to LocaleHelper.tr(
+                                isZh,
+                                "API 返回格式异常: ${body.take(150)}",
+                                "Unexpected API response: ${body.take(150)}"
+                            )
                         }
                     }
 
-                    val multimodalResult = testMultimodalCapability(cleanKey, cleanUrl, cleanModel)
+                    val multimodalResult = testMultimodalCapability(cleanKey, cleanUrl, cleanModel, isZh)
                     if (multimodalResult.first) {
-                        TestStatus.SUCCESS to "连接成功！模型支持文本与多模态图片输入"
+                        TestStatus.SUCCESS to LocaleHelper.tr(
+                            isZh,
+                            "连接成功！模型支持文本与多模态图片输入",
+                            "Connected! Model supports text and image inputs."
+                        )
                     } else {
-                        TestStatus.SUCCESS to "文本连接成功，但多模态测试未通过: ${multimodalResult.second}"
+                        TestStatus.SUCCESS to LocaleHelper.tr(
+                            isZh,
+                            "文本连接成功，但多模态测试未通过: ${multimodalResult.second}",
+                            "Text OK, but image input check failed: ${multimodalResult.second}"
+                        )
                     }
                 }
                 _testState.value = result
             } catch (e: Exception) {
-                _testState.value = TestStatus.FAILURE to "连接失败: ${e.message}"
+                _testState.value = TestStatus.FAILURE to LocaleHelper.tr(
+                    isZh,
+                    "连接失败: ${e.message}",
+                    "Connection failed: ${e.message}"
+                )
             }
         }
     }
@@ -309,9 +350,11 @@ class SettingsViewModel @Inject constructor(
     private fun testMultimodalCapability(
         apiKey: String,
         cleanUrl: String,
-        model: String
+        model: String,
+        isZh: Boolean
     ): Pair<Boolean, String> = try {
         val testImageBase64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
+        val prompt = LocaleHelper.tr(isZh, "回复OK两个字", "Reply with OK")
         val requestBody = gson.toJson(
             mapOf(
                 "model" to model,
@@ -319,7 +362,7 @@ class SettingsViewModel @Inject constructor(
                     mapOf(
                         "role" to "user",
                         "content" to listOf(
-                            mapOf("type" to "text", "text" to "回复OK两个字"),
+                            mapOf("type" to "text", "text" to prompt),
                             mapOf(
                                 "type" to "image_url",
                                 "image_url" to mapOf(
@@ -347,10 +390,14 @@ class SettingsViewModel @Inject constructor(
             @Suppress("UNCHECKED_CAST")
             val choices = json?.get("choices") as? List<Map<String, Any>>
             val message = choices?.firstOrNull()?.get("message") as? Map<*, *>
-            if (message?.get("content") != null) true to "通过" else false to "返回格式异常"
+            if (message?.get("content") != null) {
+                true to LocaleHelper.tr(isZh, "通过", "Passed")
+            } else {
+                false to LocaleHelper.tr(isZh, "返回格式异常", "Invalid format")
+            }
         }
     } catch (e: Exception) {
-        false to (e.message ?: "未知错误")
+        false to (e.message ?: LocaleHelper.tr(isZh, "未知错误", "Unknown error"))
     }
 
     fun resetTestState() {
@@ -365,35 +412,57 @@ class SettingsViewModel @Inject constructor(
 
     fun exportData(uri: Uri) {
         viewModelScope.launch {
-            _exportStatus.value = ExportImportStatus.RUNNING to "正在导出..."
+            val isZh = LocaleHelper.isChinese(app)
+            _exportStatus.value = ExportImportStatus.RUNNING to LocaleHelper.tr(isZh, "正在导出...", "Exporting...")
             val result = exportManager.exportData(uri)
+            val nowZh = LocaleHelper.isChinese(app)
             _exportStatus.value = if (result.isSuccess) {
-                ExportImportStatus.SUCCESS to "导出成功"
+                ExportImportStatus.SUCCESS to LocaleHelper.tr(nowZh, "导出成功", "Export succeeded")
             } else {
-                ExportImportStatus.FAILURE to "导出失败: ${result.exceptionOrNull()?.message}"
+                ExportImportStatus.FAILURE to LocaleHelper.tr(
+                    nowZh,
+                    "导出失败: ${result.exceptionOrNull()?.message}",
+                    "Export failed: ${result.exceptionOrNull()?.message}"
+                )
             }
         }
     }
 
     fun importData(uri: Uri) {
         viewModelScope.launch {
-            _importStatus.value = ExportImportStatus.RUNNING to "正在导入..."
+            val isZh = LocaleHelper.isChinese(app)
+            _importStatus.value = ExportImportStatus.RUNNING to LocaleHelper.tr(isZh, "正在导入...", "Importing...")
             val result = exportManager.importData(uri)
+            val nowZh = LocaleHelper.isChinese(app)
             _importStatus.value = if (result.isSuccess) {
                 NutriTrackerWidgetUpdater.enqueueUpdate(app)
                 val r = result.getOrNull()!!
                 val msg = buildString {
-                    append("导入完成: 食物 ${r.mealsImported} 条")
-                    if (r.mealsSkipped > 0) append("(复用 ${r.mealsSkipped})")
-                    append(", 饮食 ${r.intakesImported} 条, 活动 ${r.activitiesImported} 条")
-                    if (r.recipesImported > 0) append(", 食谱 ${r.recipesImported} 个")
-                    if (r.weightLogsImported > 0) append(", 体重 ${r.weightLogsImported} 条")
-                    if (r.waterIntakesImported > 0) append(", 饮水 ${r.waterIntakesImported} 条")
-                    if (r.imagesImported > 0) append(", 图片 ${r.imagesImported} 张")
+                    if (nowZh) {
+                        append("导入完成: 食物 ${r.mealsImported} 条")
+                        if (r.mealsSkipped > 0) append("(复用 ${r.mealsSkipped})")
+                        append(", 饮食 ${r.intakesImported} 条, 活动 ${r.activitiesImported} 条")
+                        if (r.recipesImported > 0) append(", 食谱 ${r.recipesImported} 个")
+                        if (r.weightLogsImported > 0) append(", 体重 ${r.weightLogsImported} 条")
+                        if (r.waterIntakesImported > 0) append(", 饮水 ${r.waterIntakesImported} 条")
+                        if (r.imagesImported > 0) append(", 图片 ${r.imagesImported} 张")
+                    } else {
+                        append("Imported: ${r.mealsImported} foods")
+                        if (r.mealsSkipped > 0) append(" (${r.mealsSkipped} reused)")
+                        append(", ${r.intakesImported} meals, ${r.activitiesImported} activities")
+                        if (r.recipesImported > 0) append(", ${r.recipesImported} recipes")
+                        if (r.weightLogsImported > 0) append(", ${r.weightLogsImported} weights")
+                        if (r.waterIntakesImported > 0) append(", ${r.waterIntakesImported} water logs")
+                        if (r.imagesImported > 0) append(", ${r.imagesImported} photos")
+                    }
                 }
                 ExportImportStatus.SUCCESS to msg
             } else {
-                ExportImportStatus.FAILURE to "导入失败: ${result.exceptionOrNull()?.message}"
+                ExportImportStatus.FAILURE to LocaleHelper.tr(
+                    nowZh,
+                    "导入失败: ${result.exceptionOrNull()?.message}",
+                    "Import failed: ${result.exceptionOrNull()?.message}"
+                )
             }
         }
     }

@@ -17,6 +17,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -35,11 +36,15 @@ import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.nutritracker.R
+import com.example.nutritracker.data.entity.AppLanguage
 import com.example.nutritracker.data.entity.ThemeMode
 import com.example.nutritracker.ui.theme.Dimens
 import com.example.nutritracker.ui.theme.LocalUseDarkTheme
 import com.example.nutritracker.ui.theme.SuccessColor
 import com.example.nutritracker.ui.theme.SuccessColorDark
+import com.example.nutritracker.util.LocalIsChinese
+import com.example.nutritracker.util.LocaleHelper
+import com.example.nutritracker.util.tr
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -72,7 +77,11 @@ fun SettingsScreen(
         ActivityResultContracts.RequestPermission()
     ) { granted ->
         if (!granted) {
-            Toast.makeText(context, "未授予通知权限，提醒将无法弹出", Toast.LENGTH_SHORT).show()
+            Toast.makeText(
+                context,
+                LocaleHelper.tr(context, "未授予通知权限，提醒将无法弹出", "Notification permission denied — reminders will not show"),
+                Toast.LENGTH_SHORT
+            ).show()
         }
     }
 
@@ -99,8 +108,9 @@ fun SettingsScreen(
             .padding(horizontal = Dimens.ContentPadding),
         verticalArrangement = Arrangement.spacedBy(Dimens.CardSpacing)
     ) {
+        val isZh = LocalIsChinese.current
         Text(
-            text = "设置",
+            text = tr("设置", "Settings"),
             style = MaterialTheme.typography.headlineMedium,
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.onSurface,
@@ -108,7 +118,7 @@ fun SettingsScreen(
         )
 
         // ── 外观与单位 ────────────────────────────────────────────────────
-        SectionTitle(icon = Icons.Filled.Palette, title = "外观与单位")
+        SectionTitle(icon = Icons.Filled.Palette, title = tr("外观与单位", "Appearance & Units"))
 
         ElevatedCard(
             modifier = Modifier.fillMaxWidth(),
@@ -116,16 +126,39 @@ fun SettingsScreen(
             elevation = CardDefaults.elevatedCardElevation(defaultElevation = Dimens.CardElevation)
         ) {
             Column(modifier = Modifier.padding(Dimens.CardInnerPadding), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text("主题模式", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Medium)
+                Text(tr("应用语言", "Language"), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Medium)
                 SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-                    val modes = listOf(ThemeMode.SYSTEM to "跟随系统", ThemeMode.LIGHT to "浅色", ThemeMode.DARK to "深色")
+                    val langs = AppLanguage.entries
+                    langs.forEachIndexed { index, lang ->
+                        SegmentedButton(
+                            selected = state.appLanguage == lang,
+                            onClick = { vm.setAppLanguage(lang) },
+                            shape = SegmentedButtonDefaults.itemShape(index = index, count = langs.size)
+                        ) {
+                            Text(
+                                text = LocaleHelper.appLanguageLabel(lang, isZh),
+                                style = MaterialTheme.typography.labelMedium,
+                                maxLines = 1,
+                                softWrap = false
+                            )
+                        }
+                    }
+                }
+                HorizontalDivider()
+                Text(tr("主题模式", "Theme"), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Medium)
+                SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                    val modes = listOf(
+                        ThemeMode.SYSTEM to tr("跟随系统", "System"),
+                        ThemeMode.LIGHT to tr("浅色", "Light"),
+                        ThemeMode.DARK to tr("深色", "Dark")
+                    )
                     modes.forEachIndexed { index, (mode, label) ->
                         SegmentedButton(
                             selected = state.themeMode == mode,
                             onClick = { vm.setThemeMode(mode) },
                             shape = SegmentedButtonDefaults.itemShape(index = index, count = modes.size)
                         ) {
-                            Text(label, style = MaterialTheme.typography.labelMedium)
+                            Text(label, style = MaterialTheme.typography.labelMedium, maxLines = 1, softWrap = false)
                         }
                     }
                 }
@@ -136,8 +169,8 @@ fun SettingsScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
-                            Text("Material You 动态取色", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
-                            Text("根据系统壁纸自动配色", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(tr("Material You 动态取色", "Dynamic Color"), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+                            Text(tr("根据系统壁纸自动配色", "Match device wallpaper palette"), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                         Switch(checked = state.dynamicColorEnabled, onCheckedChange = { vm.setDynamicColorEnabled(it) })
                     }
@@ -149,8 +182,13 @@ fun SettingsScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
-                        Text("能量单位", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
-                        Text(if (state.useKj) "当前：千焦 (kJ)" else "当前：千卡 (kcal)", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(tr("能量单位", "Energy Unit"), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+                        Text(
+                            if (state.useKj) tr("当前：千焦 (kJ)", "Current: Kilojoules (kJ)")
+                            else tr("当前：千卡 (kcal)", "Current: Kilocalories (kcal)"),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
                     SingleChoiceSegmentedButtonRow {
                         SegmentedButton(
@@ -171,27 +209,32 @@ fun SettingsScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
-                        Text("身体测量单位", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
-                        Text(if (state.usesImperialUnits) "当前：英制 (lbs / in)" else "当前：公制 (kg / cm)", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(tr("身体测量单位", "Measurement Units"), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+                        Text(
+                            if (state.usesImperialUnits) tr("当前：英制 (lbs / in)", "Current: Imperial (lbs / in)")
+                            else tr("当前：公制 (kg / cm)", "Current: Metric (kg / cm)"),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
                     SingleChoiceSegmentedButtonRow {
                         SegmentedButton(
                             selected = !state.usesImperialUnits,
                             onClick = { vm.setUsesImperialUnits(false) },
                             shape = SegmentedButtonDefaults.itemShape(0, 2)
-                        ) { Text("公制") }
+                        ) { Text(tr("公制", "Metric"), maxLines = 1, softWrap = false) }
                         SegmentedButton(
                             selected = state.usesImperialUnits,
                             onClick = { vm.setUsesImperialUnits(true) },
                             shape = SegmentedButtonDefaults.itemShape(1, 2)
-                        ) { Text("英制") }
+                        ) { Text(tr("英制", "Imperial"), maxLines = 1, softWrap = false) }
                     }
                 }
             }
         }
 
         // ── 计算参数 ──────────────────────────────────────────────────────
-        SectionTitle(icon = Icons.Filled.Calculate, title = "计算与目标")
+        SectionTitle(icon = Icons.Filled.Calculate, title = tr("计算与目标", "Calculations & Goals"))
 
         ElevatedCard(
             modifier = Modifier.fillMaxWidth(),
@@ -199,15 +242,19 @@ fun SettingsScreen(
             elevation = CardDefaults.elevatedCardElevation(defaultElevation = Dimens.CardElevation)
         ) {
             Column(modifier = Modifier.padding(Dimens.CardInnerPadding), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text("日边界偏移 (0 ~ 1439 分钟)", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Medium)
-                Text("例如设为 270 (04:30)，凌晨 4:30 前的记录归入前一天", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(tr("日边界偏移 (0 ~ 1439 分钟)", "Day Boundary Offset (0–1439 min)"), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Medium)
+                Text(
+                    tr("例如设为 270 (04:30)，凌晨 4:30 前的记录归入前一天", "e.g., 270 (04:30) counts logs before 4:30 AM toward yesterday"),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
                 val bndVal = dayBoundaryDraft.toIntOrNull()
                 val bndValid = bndVal != null && bndVal in 0..1439
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     OutlinedTextField(
                         value = dayBoundaryDraft,
                         onValueChange = { dayBoundaryDraft = it },
-                        label = { Text("分钟") },
+                        label = { Text(tr("分钟", "Minutes")) },
                         isError = dayBoundaryDraft.isNotBlank() && !bndValid,
                         modifier = Modifier.width(120.dp),
                         singleLine = true,
@@ -223,7 +270,7 @@ fun SettingsScreen(
                     FilledTonalButton(
                         onClick = { bndVal?.let { vm.updateDayBoundary(it) } },
                         enabled = bndValid && bndVal != state.dayBoundaryMinutes
-                    ) { Text("应用") }
+                    ) { Text(tr("应用", "Apply")) }
                 }
             }
         }
@@ -234,15 +281,19 @@ fun SettingsScreen(
             elevation = CardDefaults.elevatedCardElevation(defaultElevation = Dimens.CardElevation)
         ) {
             Column(modifier = Modifier.padding(Dimens.CardInnerPadding), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text("每日热量微调 (kcal)", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Medium)
-                Text("在 TDEE 基础目标上手动加减 (-3000 ~ +3000 kcal)", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(tr("每日热量微调 (kcal)", "Daily Calorie Offset (kcal)"), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Medium)
+                Text(
+                    tr("在 TDEE 基础目标上手动加减 (-3000 ~ +3000 kcal)", "Adjust daily target relative to TDEE (-3000 to +3000 kcal)"),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
                 val adjVal = kcalAdjDraft.toDoubleOrNull()
                 val adjValid = adjVal != null && adjVal in -3000.0..3000.0
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedTextField(
                         value = kcalAdjDraft,
                         onValueChange = { kcalAdjDraft = it },
-                        label = { Text("偏移 kcal") },
+                        label = { Text(tr("偏移 kcal", "Offset kcal")) },
                         isError = kcalAdjDraft.isNotBlank() && !adjValid,
                         modifier = Modifier.weight(1f),
                         singleLine = true,
@@ -252,12 +303,12 @@ fun SettingsScreen(
                         val cur = kcalAdjDraft.toIntOrNull() ?: 0
                         kcalAdjDraft = (-cur).toString()
                     }) {
-                        Icon(Icons.Filled.Exposure, contentDescription = "正负切换")
+                        Icon(Icons.Filled.Exposure, contentDescription = tr("正负切换", "Toggle sign"))
                     }
                     FilledTonalButton(
                         onClick = { adjVal?.let { vm.updateKcalAdj(it) } },
                         enabled = adjValid && adjVal != state.kcalAdjustment
-                    ) { Text("应用") }
+                    ) { Text(tr("应用", "Apply")) }
                 }
             }
         }
@@ -268,11 +319,16 @@ fun SettingsScreen(
             elevation = CardDefaults.elevatedCardElevation(defaultElevation = Dimens.CardElevation)
         ) {
             ListItem(
-                headlineContent = { Text("宏量营养素分配", fontWeight = FontWeight.Medium) },
+                headlineContent = { Text(tr("宏量营养素分配", "Macro Split"), fontWeight = FontWeight.Medium) },
                 supportingContent = {
-                    Text("碳水 ${(state.carbPct * 100).roundToInt()}% / 脂肪 ${(state.fatPct * 100).roundToInt()}% / 蛋白质 ${(state.proteinPct * 100).roundToInt()}%")
+                    Text(
+                        tr(
+                            "碳水 ${(state.carbPct * 100).roundToInt()}% / 脂肪 ${(state.fatPct * 100).roundToInt()}% / 蛋白质 ${(state.proteinPct * 100).roundToInt()}%",
+                            "Carbs ${(state.carbPct * 100).roundToInt()}% / Fat ${(state.fatPct * 100).roundToInt()}% / Protein ${(state.proteinPct * 100).roundToInt()}%"
+                        )
+                    )
                 },
-                trailingContent = { TextButton(onClick = { showMacroDialog = true }) { Text("修改") } },
+                trailingContent = { TextButton(onClick = { showMacroDialog = true }) { Text(tr("修改", "Edit")) } },
                 colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)
             )
         }
@@ -284,14 +340,14 @@ fun SettingsScreen(
             elevation = CardDefaults.elevatedCardElevation(defaultElevation = Dimens.CardElevation)
         ) {
             Column(modifier = Modifier.padding(Dimens.CardInnerPadding), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text("饮水目标与快捷杯量", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Medium)
+                Text(tr("饮水目标与快捷杯量", "Hydration Goal & Quick Amounts"), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Medium)
                 val wgVal = waterGoalDraft.toIntOrNull()
                 val wgValid = wgVal != null && wgVal in 100..20000
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedTextField(
                         value = waterGoalDraft,
                         onValueChange = { waterGoalDraft = it },
-                        label = { Text("每日目标 (ml)") },
+                        label = { Text(tr("每日目标 (ml)", "Daily goal (ml)")) },
                         isError = waterGoalDraft.isNotBlank() && !wgValid,
                         modifier = Modifier.weight(1f),
                         singleLine = true,
@@ -300,7 +356,7 @@ fun SettingsScreen(
                     FilledTonalButton(
                         onClick = { wgVal?.let { vm.updateWaterGoal(it) } },
                         enabled = wgValid && wgVal != state.waterGoalMl
-                    ) { Text("应用") }
+                    ) { Text(tr("应用", "Apply")) }
                 }
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -308,18 +364,21 @@ fun SettingsScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "快捷杯量：${state.waterQuickAmounts.joinToString(" / ") { "${it}ml" }}",
+                        text = tr(
+                            "快捷杯量：${state.waterQuickAmounts.joinToString(" / ") { "${it}ml" }}",
+                            "Quick buttons: ${state.waterQuickAmounts.joinToString(" / ") { "${it}ml" }}"
+                        ),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.weight(1f)
                     )
-                    TextButton(onClick = { showWaterQuickDialog = true }) { Text("自定义") }
+                    TextButton(onClick = { showWaterQuickDialog = true }) { Text(tr("自定义", "Customize")) }
                 }
             }
         }
 
         // ── 提醒通知 ──────────────────────────────────────────────────────
-        SectionTitle(icon = Icons.Filled.Notifications, title = "智能提醒 (WorkManager)")
+        SectionTitle(icon = Icons.Filled.Notifications, title = tr("智能提醒 (WorkManager)", "Reminders"))
 
         ElevatedCard(
             modifier = Modifier.fillMaxWidth(),
@@ -333,8 +392,8 @@ fun SettingsScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
-                        Text("三餐漏记提醒", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
-                        Text("到点仍未记录该餐时才提醒", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(tr("三餐漏记提醒", "Missed Meal Reminders"), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+                        Text(tr("到点仍未记录该餐时才提醒", "Notify only if that meal is still unlogged"), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                     Switch(
                         checked = state.mealReminderEnabled,
@@ -351,9 +410,9 @@ fun SettingsScreen(
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         val slots = listOf(
-                            Triple(0, "早餐", state.breakfastReminderMin),
-                            Triple(1, "午餐", state.lunchReminderMin),
-                            Triple(2, "晚餐", state.dinnerReminderMin)
+                            Triple(0, tr("早餐", "Breakfast"), state.breakfastReminderMin),
+                            Triple(1, tr("午餐", "Lunch"), state.lunchReminderMin),
+                            Triple(2, tr("晚餐", "Dinner"), state.dinnerReminderMin)
                         )
                         slots.forEach { (slot, label, minOfDay) ->
                             OutlinedButton(
@@ -361,7 +420,7 @@ fun SettingsScreen(
                                 modifier = Modifier.weight(1f),
                                 contentPadding = PaddingValues(horizontal = 6.dp, vertical = 6.dp)
                             ) {
-                                Text("$label ${formatMinuteOfDay(minOfDay)}", style = MaterialTheme.typography.labelSmall)
+                                Text("$label ${formatMinuteOfDay(minOfDay)}", style = MaterialTheme.typography.labelSmall, maxLines = 1, softWrap = false)
                             }
                         }
                     }
@@ -375,8 +434,8 @@ fun SettingsScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
-                        Text("定时饮水提醒", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
-                        Text("08:00-22:00 未达标时定期提醒", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(tr("定时饮水提醒", "Hydration Reminders"), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+                        Text(tr("08:00-22:00 未达标时定期提醒", "Periodic reminders 08:00–22:00 until goal met"), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                     Switch(
                         checked = state.waterReminderEnabled,
@@ -396,7 +455,7 @@ fun SettingsScreen(
                             FilterChip(
                                 selected = state.waterReminderIntervalMin == interval,
                                 onClick = { vm.setWaterReminderIntervalMin(interval) },
-                                label = { Text("每 $interval 分钟") }
+                                label = { Text(tr("每 $interval 分钟", "Every $interval min")) }
                             )
                         }
                     }
@@ -405,7 +464,7 @@ fun SettingsScreen(
         }
 
         // ── AI 食物识别 ───────────────────────────────────────────────────
-        SectionTitle(icon = Icons.Filled.SmartToy, title = "AI 食物识别")
+        SectionTitle(icon = Icons.Filled.SmartToy, title = tr("AI 食物识别", "AI Food Analysis"))
 
         ElevatedCard(
             modifier = Modifier.fillMaxWidth(),
@@ -416,7 +475,7 @@ fun SettingsScreen(
                 ListItem(
                     headlineContent = {
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Text("AI API 配置", fontWeight = FontWeight.Medium)
+                            Text(tr("AI API 配置", "AI API Configuration"), fontWeight = FontWeight.Medium)
                             Box(
                                 modifier = Modifier
                                     .size(8.dp)
@@ -429,18 +488,24 @@ fun SettingsScreen(
                     },
                     supportingContent = {
                         Text(
-                            if (state.aiApiKey.isBlank()) "未配置 - 点击设置 API Key (Keystore 加密存储)"
-                            else "模型: ${state.aiModel} · Key 已加密存储"
+                            if (state.aiApiKey.isBlank()) {
+                                tr("未配置 - 点击设置 API Key (Keystore 加密存储)", "Not configured — tap to set Key (encrypted in Keystore)")
+                            } else {
+                                tr("模型: ${state.aiModel} · Key 已加密存储", "Model: ${state.aiModel} · Keystore encrypted")
+                            }
                         )
                     },
-                    trailingContent = { TextButton(onClick = { showAiDialog = true }) { Text("配置") } },
+                    trailingContent = { TextButton(onClick = { showAiDialog = true }) { Text(tr("配置", "Configure")) } },
                     colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)
                 )
                 HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
                 ListItem(
-                    headlineContent = { Text("识别后直接自动入库", fontWeight = FontWeight.Medium) },
+                    headlineContent = { Text(tr("识别后直接自动入库", "Auto-Log Without Review"), fontWeight = FontWeight.Medium) },
                     supportingContent = {
-                        Text(if (state.aiAutoConfirm) "已开启：识别完成后直接保存" else "已关闭：识别后弹出确认微调窗口")
+                        Text(
+                            if (state.aiAutoConfirm) tr("已开启：识别完成后直接保存", "On: Saves results automatically after analysis")
+                            else tr("已关闭：识别后弹出确认微调窗口", "Off: Opens review sheet to adjust portions first")
+                        )
                     },
                     trailingContent = {
                         Switch(checked = state.aiAutoConfirm, onCheckedChange = { vm.setAiAutoConfirm(it) })
@@ -451,7 +516,7 @@ fun SettingsScreen(
         }
 
         // ── 数据管理 ──────────────────────────────────────────────────────
-        SectionTitle(icon = Icons.Filled.Sync, title = "数据备份与恢复")
+        SectionTitle(icon = Icons.Filled.Sync, title = tr("数据备份与恢复", "Backup & Restore"))
 
         ElevatedCard(
             modifier = Modifier.fillMaxWidth(),
@@ -459,10 +524,10 @@ fun SettingsScreen(
             elevation = CardDefaults.elevatedCardElevation(defaultElevation = Dimens.CardElevation)
         ) {
             ListItem(
-                headlineContent = { Text("导出数据", fontWeight = FontWeight.Medium) },
+                headlineContent = { Text(tr("导出数据", "Export Backup"), fontWeight = FontWeight.Medium) },
                 supportingContent = {
                     Column {
-                        Text("导出饮食、食谱、体重、饮水、设置与缩略图至 ZIP")
+                        Text(tr("导出饮食、食谱、体重、饮水、设置与缩略图至 ZIP", "Export meals, recipes, weight, water, settings & photos as ZIP"))
                         val (status, msg) = exportStatus
                         if (status != ExportImportStatus.IDLE) {
                             Text(
@@ -483,7 +548,7 @@ fun SettingsScreen(
                         TextButton(onClick = {
                             val dateStr = LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss"))
                             exportLauncher.launch("NutriTracker_$dateStr.zip")
-                        }) { Text("导出") }
+                        }) { Text(tr("导出", "Export")) }
                     }
                 },
                 colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)
@@ -496,10 +561,10 @@ fun SettingsScreen(
             elevation = CardDefaults.elevatedCardElevation(defaultElevation = Dimens.CardElevation)
         ) {
             ListItem(
-                headlineContent = { Text("导入数据", fontWeight = FontWeight.Medium) },
+                headlineContent = { Text(tr("导入数据", "Import Backup"), fontWeight = FontWeight.Medium) },
                 supportingContent = {
                     Column {
-                        Text("从 ZIP 备份恢复数据（事务原子写入，重复项自动合并）")
+                        Text(tr("从 ZIP 备份恢复数据（事务原子写入，重复项自动合并）", "Restore from ZIP backup atomically with deduplication"))
                         val (status, msg) = importStatus
                         if (status != ExportImportStatus.IDLE) {
                             Text(
@@ -521,7 +586,7 @@ fun SettingsScreen(
                             importLauncher.launch(
                                 arrayOf("application/zip", "application/x-zip-compressed", "application/octet-stream")
                             )
-                        }) { Text("导入") }
+                        }) { Text(tr("导入", "Import")) }
                     }
                 },
                 colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)
@@ -529,11 +594,11 @@ fun SettingsScreen(
         }
 
         // ── 关于与科学依据 ────────────────────────────────────────────────
-        SectionTitle(icon = Icons.Filled.Info, title = "关于与科学依据")
+        SectionTitle(icon = Icons.Filled.Info, title = tr("关于与科学依据", "About & Sources"))
 
         val versionName = remember {
-            runCatching { context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "未知" }
-                .getOrDefault("未知")
+            runCatching { context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: "?" }
+                .getOrDefault("?")
         }
 
         ElevatedCard(
@@ -543,7 +608,11 @@ fun SettingsScreen(
                     runCatching {
                         context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/cdz-hy/NutriTracker")))
                     }.onFailure {
-                        Toast.makeText(context, "未找到可用的浏览器应用", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(
+                            context,
+                            LocaleHelper.tr(context, "未找到可用的浏览器应用", "No browser app found"),
+                            Toast.LENGTH_SHORT
+                        ).show()
                     }
                 },
             colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
@@ -551,7 +620,9 @@ fun SettingsScreen(
         ) {
             ListItem(
                 headlineContent = { Text("NutriTracker", fontWeight = FontWeight.Medium) },
-                supportingContent = { Text("版本 $versionName · GPLv3 开源") },
+                supportingContent = {
+                    Text(tr("版本 $versionName · GPLv3 开源", "Version $versionName · Open Source (GPLv3)"))
+                },
                 leadingContent = { Icon(Icons.Filled.Info, null, tint = MaterialTheme.colorScheme.primary) },
                 colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)
             )
@@ -565,9 +636,11 @@ fun SettingsScreen(
             elevation = CardDefaults.elevatedCardElevation(defaultElevation = Dimens.CardElevation)
         ) {
             ListItem(
-                headlineContent = { Text("科学文献来源与依据", fontWeight = FontWeight.Medium) },
-                supportingContent = { Text("查看 TDEE、BMI、DRI 与 MET 公式数据出处") },
-                leadingContent = { Icon(Icons.Filled.MenuBook, null, tint = MaterialTheme.colorScheme.primary) },
+                headlineContent = { Text(tr("科学文献来源与依据", "Scientific Sources"), fontWeight = FontWeight.Medium) },
+                supportingContent = {
+                    Text(tr("查看 TDEE、BMI、DRI 与 MET 公式数据出处", "Inspect TDEE, BMI, DRI & MET citations"))
+                },
+                leadingContent = { Icon(Icons.AutoMirrored.Filled.MenuBook, null, tint = MaterialTheme.colorScheme.primary) },
                 trailingContent = { Icon(Icons.Filled.ChevronRight, null) },
                 colors = ListItemDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)
             )
@@ -578,7 +651,7 @@ fun SettingsScreen(
             modifier = Modifier.fillMaxWidth()
         ) {
             Text(
-                text = stringResource(R.string.medical_disclaimer),
+                text = context.getString(R.string.medical_disclaimer),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(12.dp)
@@ -620,15 +693,18 @@ fun SettingsScreen(
         val parsed = amountsText.split(",").mapNotNull { it.trim().toIntOrNull() }.filter { it in 10..5000 }.distinct()
         AlertDialog(
             onDismissRequest = { showWaterQuickDialog = false },
-            title = { Text("自定义饮水快捷按钮 (ml)") },
+            title = { Text(tr("自定义饮水快捷按钮 (ml)", "Quick Water Buttons (ml)")) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("用英文逗号分隔 1~5 个数值（范围 10~5000 ml）", style = MaterialTheme.typography.bodySmall)
+                    Text(
+                        tr("用英文逗号分隔 1~5 个数值（范围 10~5000 ml）", "Enter 1–5 comma-separated amounts (10–5000 ml)"),
+                        style = MaterialTheme.typography.bodySmall
+                    )
                     OutlinedTextField(
                         value = amountsText,
                         onValueChange = { amountsText = it },
                         singleLine = true,
-                        label = { Text("如 150,250,350,500") },
+                        label = { Text(tr("如 150,250,350,500", "e.g. 150,250,350,500")) },
                         modifier = Modifier.fillMaxWidth()
                     )
                 }
@@ -637,9 +713,9 @@ fun SettingsScreen(
                 Button(
                     onClick = { vm.updateWaterQuickAmounts(parsed); showWaterQuickDialog = false },
                     enabled = parsed.isNotEmpty()
-                ) { Text("保存") }
+                ) { Text(tr("保存", "Save")) }
             },
-            dismissButton = { TextButton(onClick = { showWaterQuickDialog = false }) { Text("取消") } }
+            dismissButton = { TextButton(onClick = { showWaterQuickDialog = false }) { Text(tr("取消", "Cancel")) } }
         )
     }
 
@@ -656,7 +732,7 @@ fun SettingsScreen(
         )
         AlertDialog(
             onDismissRequest = { editingReminderSlot = null },
-            title = { Text("设置提醒时间") },
+            title = { Text(tr("设置提醒时间", "Set Reminder Time")) },
             text = { TimePicker(state = timePickerState) },
             confirmButton = {
                 TextButton(onClick = {
@@ -667,9 +743,9 @@ fun SettingsScreen(
                         else -> vm.setDinnerReminderMin(mins)
                     }
                     editingReminderSlot = null
-                }) { Text("确定") }
+                }) { Text(tr("确定", "Confirm")) }
             },
-            dismissButton = { TextButton(onClick = { editingReminderSlot = null }) { Text("取消") } }
+            dismissButton = { TextButton(onClick = { editingReminderSlot = null }) { Text(tr("取消", "Cancel")) } }
         )
     }
 }
@@ -699,26 +775,30 @@ private fun MacroDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("宏量分配 (%)", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold) },
+        title = { Text(tr("宏量分配 (%)", "Macro Split (%)"), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 OutlinedTextField(
-                    value = c, onValueChange = { c = it }, label = { Text("碳水 %") },
+                    value = c, onValueChange = { c = it }, label = { Text(tr("碳水 %", "Carbs %")) },
                     singleLine = true, modifier = Modifier.fillMaxWidth(),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
                 )
                 OutlinedTextField(
-                    value = f, onValueChange = { f = it }, label = { Text("脂肪 %") },
+                    value = f, onValueChange = { f = it }, label = { Text(tr("脂肪 %", "Fat %")) },
                     singleLine = true, modifier = Modifier.fillMaxWidth(),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
                 )
                 OutlinedTextField(
-                    value = p, onValueChange = { p = it }, label = { Text("蛋白质 %") },
+                    value = p, onValueChange = { p = it }, label = { Text(tr("蛋白质 %", "Protein %")) },
                     singleLine = true, modifier = Modifier.fillMaxWidth(),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
                 )
                 if (!valid) {
-                    Text("总计: $total% (每项需非负且总和为 100%)", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+                    Text(
+                        tr("总计: $total% (每项需非负且总和为 100%)", "Total: $total% (all must be >= 0 and sum to 100%)"),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error
+                    )
                 }
             }
         },
@@ -726,9 +806,9 @@ private fun MacroDialog(
             TextButton(
                 onClick = { onConfirm((cInt ?: 60) / 100.0, (fInt ?: 25) / 100.0, (pInt ?: 15) / 100.0) },
                 enabled = valid
-            ) { Text("保存") }
+            ) { Text(tr("保存", "Save")) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(tr("取消", "Cancel")) } },
         containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
     )
 }
@@ -750,13 +830,17 @@ private fun AiConfigDialog(
 
     AlertDialog(
         onDismissRequest = { vm.resetTestState(); onDismiss() },
-        title = { Text("AI API 配置", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold) },
+        title = { Text(tr("AI API 配置", "AI API Configuration"), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold) },
         text = {
             Column(
                 modifier = Modifier.verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Text("配置兼容 OpenAI /chat/completions 接口的多模态模型", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(
+                    tr("配置兼容 OpenAI /chat/completions 接口的多模态模型", "Configure an OpenAI-compatible /chat/completions vision model"),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
                 OutlinedTextField(
                     value = key,
                     onValueChange = { key = it },
@@ -781,7 +865,7 @@ private fun AiConfigDialog(
                 OutlinedTextField(
                     value = mdl,
                     onValueChange = { mdl = it },
-                    label = { Text("模型名称") },
+                    label = { Text(tr("模型名称", "Model Name")) },
                     placeholder = { Text("gpt-4o-mini / qwen-vl-plus") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
@@ -807,7 +891,7 @@ private fun AiConfigDialog(
                     if (status == TestStatus.TESTING) {
                         CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("测试中...")
+                        Text(tr("测试中...", "Testing..."))
                     } else {
                         Icon(
                             when (status) {
@@ -821,9 +905,9 @@ private fun AiConfigDialog(
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
                             when (status) {
-                                TestStatus.SUCCESS -> "测试通过"
-                                TestStatus.FAILURE -> "重新测试"
-                                else -> "测试连接"
+                                TestStatus.SUCCESS -> tr("测试通过", "Connected")
+                                TestStatus.FAILURE -> tr("重新测试", "Retry Test")
+                                else -> tr("测试连接", "Test Connection")
                             }
                         )
                     }
@@ -857,10 +941,10 @@ private fun AiConfigDialog(
             TextButton(
                 onClick = { vm.resetTestState(); onConfirm(key, url, mdl) },
                 enabled = key.isNotBlank()
-            ) { Text("保存") }
+            ) { Text(tr("保存", "Save")) }
         },
         dismissButton = {
-            TextButton(onClick = { vm.resetTestState(); onDismiss() }) { Text("取消") }
+            TextButton(onClick = { vm.resetTestState(); onDismiss() }) { Text(tr("取消", "Cancel")) }
         },
         containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
     )
