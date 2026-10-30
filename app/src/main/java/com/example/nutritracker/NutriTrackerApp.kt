@@ -22,7 +22,9 @@ class NutriTrackerApp : Application() {
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     override fun attachBaseContext(base: Context) {
-        super.attachBaseContext(LocaleHelper.wrapBaseContext(base))
+        super.attachBaseContext(base)
+        val lang = LocaleHelper.getSavedLanguageSync(base)
+        LocaleHelper.applyDefaultLocale(lang)
     }
 
     override fun onCreate() {

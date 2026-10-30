@@ -27,6 +27,7 @@ import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.*
 import androidx.navigation.navArgument
+import com.example.nutritracker.data.entity.AppLanguage
 import com.example.nutritracker.data.entity.IntakeType
 import com.example.nutritracker.feature.activity.AddActivityScreen
 import com.example.nutritracker.feature.analytics.AnalyticsScreen
@@ -72,14 +73,17 @@ class MainActivity : ComponentActivity() {
             val appLanguage by rootVm.appLanguage.collectAsStateWithLifecycle()
             val dynamicColor by rootVm.dynamicColorEnabled.collectAsStateWithLifecycle()
 
+            var previousLanguage by remember { mutableStateOf<AppLanguage?>(null) }
             val isZh = LocaleHelper.isChinese(appLanguage)
-            val localizedCtx = remember(appLanguage, baseContext.resources.configuration) {
-                LocaleHelper.applyDefaultLocale(appLanguage)
-                LocaleHelper.localizedContext(baseContext, appLanguage)
+            val localizedCtx = remember(appLanguage, resources.configuration) {
+                LocaleHelper.wrapActivityContext(this@MainActivity, appLanguage)
             }
             LaunchedEffect(appLanguage) {
-                LocaleHelper.persistSync(applicationContext, appLanguage)
-                NutriTrackerWidgetUpdater.enqueueUpdate(localizedCtx)
+                if (previousLanguage != null && previousLanguage != appLanguage) {
+                    LocaleHelper.persistSync(applicationContext, appLanguage)
+                    NutriTrackerWidgetUpdater.enqueueUpdate(applicationContext)
+                }
+                previousLanguage = appLanguage
             }
 
             CompositionLocalProvider(

@@ -1,6 +1,8 @@
 package com.example.nutritracker.util
 
 import android.content.Context
+import android.content.ContextWrapper
+import android.content.res.AssetManager
 import android.content.res.Configuration
 import android.content.res.Resources
 import android.os.LocaleList
@@ -30,9 +32,9 @@ object LocaleHelper {
 
     fun persistSync(context: Context, language: AppLanguage) {
         cachedLanguage = language
+        val prefsCtx = context.applicationContext ?: context
         runCatching {
-            context.applicationContext
-                .getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            prefsCtx.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
                 .edit()
                 .putString(KEY_APP_LANGUAGE, language.name)
                 .apply()
@@ -41,15 +43,15 @@ object LocaleHelper {
 
     fun getSavedLanguageSync(context: Context): AppLanguage {
         cachedLanguage?.let { return it }
-        val loaded = runCatching {
-            val raw = context.applicationContext
-                .getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val prefsCtx = context.applicationContext ?: context
+        return runCatching {
+            val raw = prefsCtx.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
                 .getString(KEY_APP_LANGUAGE, AppLanguage.SYSTEM.name)
-            runCatching { AppLanguage.valueOf(raw ?: AppLanguage.SYSTEM.name) }
+            val loaded = runCatching { AppLanguage.valueOf(raw ?: AppLanguage.SYSTEM.name) }
                 .getOrDefault(AppLanguage.SYSTEM)
+            cachedLanguage = loaded
+            loaded
         }.getOrDefault(AppLanguage.SYSTEM)
-        cachedLanguage = loaded
-        return loaded
     }
 
     fun isSystemChinese(): Boolean {
@@ -97,7 +99,23 @@ object LocaleHelper {
     fun wrapBaseContext(base: Context): Context {
         val lang = getSavedLanguageSync(base)
         applyDefaultLocale(lang)
-        return localizedContext(base, lang)
+        return if (lang == AppLanguage.SYSTEM) base else localizedContext(base, lang)
+    }
+
+    fun wrapActivityContext(activity: Context, language: AppLanguage): Context {
+        applyDefaultLocale(language)
+        val configCtx = localizedContext(activity, language)
+        return LocalizedActivityContextWrapper(activity, configCtx.resources)
+    }
+
+    private class LocalizedActivityContextWrapper(
+        base: Context,
+        private val localizedResources: Resources
+    ) : ContextWrapper(base) {
+        override fun getResources(): Resources = localizedResources
+        override fun getAssets(): AssetManager = localizedResources.assets
+        override fun createConfigurationContext(overrideConfiguration: Configuration): Context =
+            baseContext.createConfigurationContext(overrideConfiguration)
     }
 
     fun tr(isZh: Boolean, zh: String, en: String): String = if (isZh) zh else en
